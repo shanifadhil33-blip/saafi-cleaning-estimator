@@ -1,5 +1,5 @@
-// Greyscale only. Lightest = living, darkest = bathroom.
+// One grey family, floor tones only (Mossline style).
 export const ROOM_COLORS: Record<string, string> = {
-  living: "#D9D9D9", kitchen: "#B5B5B5", bedroom: "#8F8F8F", hall: "#6E6E6E", bathroom: "#4E4E4E",
+  living: "#8A8A8A", kitchen: "#7E7E7E", bedroom: "#767676", bathroom: "#6C6C6C", hall: "#727272",
 };
-export const ROOM_NAMES: Record<string, string> = { living: "Living room", kitchen: "Kitchen", bedroom: "Bedroom", hall: "Hall", bathroom: "Bathroom" };
+export const ROOM_NAMES: Record<string, string> = { living: "Living room", kitchen: "Kitchen", bedroom: "Bedroom", bathroom: "Bathroom", hall: "Hall" };

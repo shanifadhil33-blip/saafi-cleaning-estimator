@@ -15,12 +15,13 @@ for (const [w, h] of [[360, 780], [390, 844], [1440, 900]]) {
   const t0 = await tot();
   await p.locator("#area").fill("4000"); await p.waitForTimeout(600); const t1 = await tot(); ok(+t1 > +t0, `${w} slider raises price ${t0}->${t1}`);
   ok((await p.locator(".banner a").getAttribute("href")).startsWith("https://wa.me/971500000000"), `${w} demo banner links to placeholder`);
+  await p.getByRole("group", { name: "Floors" }).getByRole("button", { name: "3" }).click();
   await p.getByRole("button", { name: "More bedrooms" }).click();
   await p.getByRole("button", { name: "More bathrooms" }).click();
-  ok((await p.locator(".home-label").innerText()).includes("A 3 floor home: 4,000 sq ft · 2 bed · 2 bath"), `${w} label updates`);
+  ok((await p.locator(".home-label").innerText()).includes("4,000 sq ft · 2 bed · 2 bath"), `${w} label updates`);
   await p.locator("label.type", { hasText: "Deep" }).click(); await p.waitForTimeout(600);
   const t2 = await tot(); ok(+t2 > +t1, `${w} deep raises price ${t1}->${t2}`);
-  ok((await p.locator(".summary").innerText()).includes("Extra floors: 2"), `${w} breakdown has floors`);
+  ok((await p.locator(".summary").innerText()).includes("Extra floors · 2"), `${w} breakdown has floors`);
   await p.getByRole("button", { name: "Open floors" }).click(); await p.getByRole("button", { name: "Roof" }).click();
   ok(await p.getByRole("button", { name: "Roof" }).getAttribute("aria-pressed") === "false", `${w} roof toggle`);
   await p.getByRole("button", { name: /^Majlis/ }).click(); await p.getByRole("button", { name: /^Oven/ }).click(); await p.waitForTimeout(600);

@@ -36,10 +36,10 @@ export function estimate(c: Company, input: Home): Estimate {
   const extra = h.floors - 1;
   const cur = c.currency;
   const lines: Line[] = [
-    { key: "area", label: `Floor area: ${fmt(h.sqft)} sq ft × ${cur} ${t.perSqft.toFixed(2)}`, qty: "", amount: r2(h.sqft * t.perSqft) },
-    { key: "bed", label: `Bedrooms: ${h.bedrooms} × ${cur} ${c.perBedroom}`, qty: "", amount: r2(h.bedrooms * c.perBedroom) },
-    { key: "bath", label: `Bathrooms: ${h.bathrooms} × ${cur} ${c.perBathroom}`, qty: "", amount: r2(h.bathrooms * c.perBathroom) },
-    { key: "floors", label: `Extra floors: ${extra} × ${cur} ${c.perExtraFloor}`, qty: "", amount: r2(extra * c.perExtraFloor) },
+    { key: "area", label: `Floor area · ${fmt(h.sqft)} sq ft × ${cur} ${t.perSqft.toFixed(2)}`, qty: "", amount: r2(h.sqft * t.perSqft) },
+    { key: "bed", label: `Bedrooms · ${h.bedrooms} × ${cur} ${c.perBedroom}`, qty: "", amount: r2(h.bedrooms * c.perBedroom) },
+    { key: "bath", label: `Bathrooms · ${h.bathrooms} × ${cur} ${c.perBathroom}`, qty: "", amount: r2(h.bathrooms * c.perBathroom) },
+    { key: "floors", label: `Extra floors · ${extra} × ${cur} ${c.perExtraFloor}`, qty: "", amount: r2(extra * c.perExtraFloor) },
   ];
   let addHours = 0;
   for (const [k, tbl] of [["rooms", c.rooms], ["extras", c.extras]] as const)

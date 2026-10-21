@@ -1,257 +1,219 @@
 "use client";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, ContactShadows, Edges } from "@react-three/drei";
+import { OrbitControls, ContactShadows } from "@react-three/drei";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import type { Home } from "@/lib/engine";
 import { ROOM_COLORS } from "./rooms";
 
 type Kind = "living" | "kitchen" | "bedroom" | "bathroom" | "hall" | "maid" | "majlis";
-const TONE: Record<Kind, string> = { ...ROOM_COLORS, maid: ROOM_COLORS.bedroom, majlis: ROOM_COLORS.living } as Record<Kind, string>;
 export type Focus = { kind: string; n: number };
-type Room = { id: string; kind: Kind; x: number; z: number; w: number; d: number };
-type FloorPlan = { W: number; D: number; hw: number; rooms: Room[] };
+type Room = { id: string; kind: Kind; x: number; w: number };
+type FloorPlan = { W: number; D: number; rooms: Room[] };
 
-const SLAB = 0.1, WALL_H = 0.6, BLOCK = 0.16, GAP = 0.06, OPEN_GAP = 0.7;
-const WEIGHT: Record<Kind, number> = { living: 3.2, kitchen: 2, bedroom: 2.2, bathroom: 1, hall: 1, maid: 1.2, majlis: 2.6 };
+// Matte dollhouse cutaway in one grey family (Nick's Mossline look): opaque floor, back and side walls, open front and top.
+const SLAB = 0.12, WALL_H = 0.95, WALL_T = 0.06, OPEN_GAP = 0.75;
+const G = { slab: "#5E5E5E", wall: "#585858", part: "#626262", furn: "#7A7A7A", soft: "#E8E8E8", stair: "#7C7C7C", roof: "#8C8C8C" };
+const FLOOR_TONE: Record<Kind, string> = { ...ROOM_COLORS, maid: ROOM_COLORS.bedroom, majlis: ROOM_COLORS.living } as Record<Kind, string>;
+const WEIGHT: Record<Kind, number> = { living: 3, kitchen: 2, bedroom: 2.2, bathroom: 1.1, hall: 1, maid: 1.2, majlis: 2.4 };
 
-/** Lay out rooms per floor: a hall strip (with stairs) on the left, then two rows of rooms sized by weight. */
 export function planFloors(h: Home): FloorPlan[] {
-  const perFloor = h.sqft / h.floors;
-  const side = Math.sqrt(perFloor) / 12;
-  const W = Math.max(2.1, side * 1.18), D = Math.max(1.7, side / 1.18);
-  const lists: { kind: Kind; half?: boolean }[][] = Array.from({ length: h.floors }, () => []);
-  lists[0].push({ kind: "living" }, { kind: "kitchen" });
-  if (h.rooms?.includes("majlis")) lists[0].push({ kind: "majlis" });
-  if (h.rooms?.includes("maid")) lists[0].push({ kind: "maid" });
-  const up = h.floors > 1 ? h.floors - 1 : 0;
-  for (let i = 0; i < h.bedrooms; i++) lists[up ? 1 + (i % up) : 0].push({ kind: "bedroom" });
-  const full = Math.floor(h.bathrooms), half = h.bathrooms % 1 !== 0;
-  for (let i = 0; i < full; i++) lists[h.floors === 1 ? 0 : (h.floors - 1 - (i % h.floors))].push({ kind: "bathroom" });
-  if (half) lists[0].push({ kind: "bathroom", half: true });
-  for (let f = 1; f < h.floors; f++) if (!lists[f].some((r) => r.kind !== "bathroom")) lists[f].unshift({ kind: "living" });
+  const side = Math.sqrt(h.sqft / h.floors) / 12;
+  const W = Math.max(2.4, side * 1.45), D = Math.max(1.25, side / 1.45);
+  const lists: Kind[][] = Array.from({ length: h.floors }, () => []);
+  lists[0].push("living", "kitchen");
+  if (h.rooms?.includes("majlis")) lists[0].push("majlis");
+  if (h.rooms?.includes("maid")) lists[0].push("maid");
+  const up = h.floors - 1;
+  for (let i = 0; i < h.bedrooms; i++) lists[up ? 1 + (i % up) : 0].push("bedroom");
+  const full = Math.floor(h.bathrooms) + (h.bathrooms % 1 ? 1 : 0);
+  for (let i = 0; i < full; i++) lists[h.floors - 1 - (i % h.floors)].push("bathroom");
+  for (let f = 1; f < h.floors; f++) if (!lists[f].some((k) => k !== "bathroom")) lists[f].unshift("living");
   return lists.map((items, f) => {
-    const hw = Math.min(0.75, W * 0.2);
-    const RW = W - hw;
-    const rows: typeof items[] = items.length <= 2 ? [items] : [[], []];
-    if (rows.length === 2) {
-      const sum = [0, 0];
-      [...items].sort((a, b) => WEIGHT[b.kind] - WEIGHT[a.kind]).forEach((it) => { const r = sum[0] <= sum[1] ? 0 : 1; rows[r].push(it); sum[r] += WEIGHT[it.kind] * (it.half ? 0.6 : 1); });
-    }
-    const rooms: Room[] = [{ id: `${f}-hall`, kind: "hall", x: -W / 2 + hw / 2, z: 0, w: hw, d: D }];
-    const count: Record<string, number> = {};
-    rows.forEach((row, ri) => {
-      const d = D / rows.length, z = -D / 2 + d * (ri + 0.5);
-      const tot = row.reduce((s, it) => s + WEIGHT[it.kind] * (it.half ? 0.6 : 1), 0);
-      let x = -W / 2 + hw;
-      row.forEach((it) => {
-        const w = (RW * WEIGHT[it.kind] * (it.half ? 0.6 : 1)) / tot;
-        count[it.kind] = (count[it.kind] ?? 0) + 1;
-        rooms.push({ id: `${f}-${it.kind}-${count[it.kind]}`, kind: it.kind, x: x + w / 2, z, w, d });
-        x += w;
-      });
-    });
-    return { W, D, hw, rooms };
+    const all: Kind[] = [...items, "hall"]; // hall with stairs at the right end
+    const tot = all.reduce((s, k) => s + WEIGHT[k], 0);
+    let x = -W / 2; const cnt: Record<string, number> = {};
+    const rooms = all.map((k) => { const w = (W * WEIGHT[k]) / tot; cnt[k] = (cnt[k] ?? 0) + 1; const r = { id: `${f}-${k}-${cnt[k]}`, kind: k, x: x + w / 2, w }; x += w; return r; });
+    return { W, D, rooms };
   });
 }
 
-/** Critically damped spring towards a target, used for every moving part. */
 function useSpring(target: number, init: number, stiff = 120, damp = 16) {
   const s = useRef({ x: init, v: 0 });
-  return (dt: number) => {
-    const st = s.current, t = Math.min(dt, 1 / 30);
-    st.v += ((target - st.x) * stiff - st.v * damp) * t; st.x += st.v * t; return st.x;
-  };
+  return (dt: number) => { const st = s.current, t = Math.min(dt, 1 / 30); st.v += ((target - st.x) * stiff - st.v * damp) * t; st.x += st.v * t; return st.x; };
 }
 
-function Block({ r, focus, extras, type }: { r: Room; focus: Focus | null; extras: string[]; type: string }) {
-  const mat = useRef<THREE.MeshStandardMaterial>(null);
-  const glow = useRef(0);
+const M = ({ c, e = 0 }: { c: string; e?: number }) => <meshStandardMaterial color={c} roughness={0.95} metalness={0} emissive="#FFFFFF" emissiveIntensity={e} />;
+function B({ p, s, c, e }: { p: [number, number, number]; s: [number, number, number]; c: string; e?: number }) {
+  return <mesh position={p} castShadow receiveShadow><boxGeometry args={s} /><M c={c} e={e} /></mesh>;
+}
+
+function Furniture({ kind, w, d, extras, empty, top }: { kind: Kind; w: number; d: number; extras: string[]; empty: boolean; top: boolean }) {
+  if (kind === "hall") {
+    if (top) return null;
+    const n = 8, run = Math.min(0.42, w * 0.7), rise = WALL_H + SLAB, depth = (d * 0.85) / n;
+    return <group position={[w / 2 - run / 2 - WALL_T, 0, d * 0.42]}>{Array.from({ length: n }, (_, i) => {
+      const hh = (rise * (i + 1)) / n; return <B key={i} p={[0, hh / 2, -depth * (i + 0.5)]} s={[run, hh, depth * 0.98]} c={G.stair} />;
+    })}</group>;
+  }
+  if (empty) return null;
+  const k: React.ReactNode[] = [];
+  const bz = -d / 2 + WALL_T;
+  if (kind === "bedroom" || kind === "maid") {
+    const bw = Math.min(w * 0.6, kind === "maid" ? 0.32 : 0.5), bl = Math.min(d * 0.55, 0.62);
+    k.push(<B key="bed" p={[0, 0.07, bz + bl / 2 + 0.04]} s={[bw, 0.14, bl]} c={G.soft} />,
+      <B key="pil" p={[0, 0.17, bz + 0.1]} s={[bw * 0.85, 0.06, 0.1]} c="#FFFFFF" />,
+      <B key="hb" p={[0, 0.16, bz + 0.02]} s={[bw, 0.32, 0.04]} c={G.furn} />);
+  }
+  if (kind === "living" || kind === "majlis") {
+    const sw = Math.min(w * 0.7, 1.1);
+    k.push(<B key="sofa" p={[0, 0.08, bz + 0.16]} s={[sw, 0.16, 0.26]} c={extras.includes("sofa") ? G.soft : G.furn} />,
+      <B key="back" p={[0, 0.2, bz + 0.05]} s={[sw, 0.24, 0.07]} c={extras.includes("sofa") ? G.soft : G.furn} />,
+      <B key="tbl" p={[0, 0.06, bz + 0.6]} s={[sw * 0.4, 0.12, 0.2]} c={G.furn} />);
+    if (extras.includes("carpet")) k.push(<B key="rug" p={[0, 0.006, bz + 0.55]} s={[sw * 0.75, 0.012, 0.5]} c="#D0D0D0" />);
+    if (kind === "majlis") k.push(<B key="side" p={[-w / 2 + 0.16, 0.08, 0]} s={[0.24, 0.16, d * 0.6]} c={G.furn} />);
+  }
+  if (kind === "kitchen") {
+    k.push(<B key="ctr" p={[0, 0.2, bz + 0.13]} s={[w * 0.85, 0.4, 0.24]} c={G.furn} />,
+      <B key="isl" p={[0, 0.17, bz + 0.62]} s={[w * 0.45, 0.34, 0.24]} c={G.furn} />);
+    if (extras.includes("oven")) k.push(<B key="ov" p={[-w * 0.15, 0.17, bz + 0.26]} s={[0.2, 0.26, 0.02]} c="#FFFFFF" />);
+    if (extras.includes("fridge")) k.push(<B key="fr" p={[w * 0.32, 0.38, bz + 0.15]} s={[0.22, 0.76, 0.26]} c="#F2F2F2" />);
+  }
+  if (kind === "bathroom") {
+    k.push(<B key="tub" p={[0, 0.1, bz + 0.17]} s={[Math.min(w * 0.7, 0.55), 0.2, 0.28]} c="#F0F0F0" />,
+      <B key="sink" p={[w * 0.25, 0.2, d * 0.15]} s={[0.14, 0.4, 0.14]} c={G.furn} />);
+  }
+  return <>{k}</>;
+}
+
+function RoomView({ r, D, focus, extras, type, top }: { r: Room; D: number; focus: Focus | null; extras: string[]; type: string; top: boolean }) {
+  const ref = useRef<THREE.Group>(null), mat = useRef<THREE.MeshStandardMaterial>(null), glow = useRef(0), last = useRef(-1);
   const hit = focus && (focus.kind === r.kind || focus.kind === "all" || (focus.kind === "bedroom" && r.kind === "maid")) ? focus.n : -1;
-  const last = useRef(hit);
-  if (hit !== last.current) { last.current = hit; if (hit >= 0) glow.current = 1; }
-  const ref = useRef<THREE.Group>(null);
-  const sc = useSpring(1, 0.001, 170, 13);
-  const px = useSpring(r.x, r.x), pz = useSpring(r.z, r.z), sw = useSpring(r.w, r.w), sd = useSpring(r.d, r.d);
+  useEffect(() => { if (hit >= 0 && hit !== last.current) { glow.current = 1; } last.current = hit; }, [hit]);
+  const pop = useSpring(1, 0.001, 170, 13), px = useSpring(r.x, r.x), sw = useSpring(r.w, r.w);
   useFrame((_, dt) => {
-    const g = ref.current; if (!g) return;
-    const s = Math.max(0.001, sc(dt));
-    g.position.set(px(dt), 0, pz(dt));
-    g.scale.set(Math.max(0.01, sw(dt) - GAP) * s, s, Math.max(0.01, sd(dt) - GAP) * s);
-    glow.current = Math.max(0, glow.current - dt * 0.9);
-    if (mat.current) mat.current.emissiveIntensity = glow.current * 0.9 + (type === "deep" ? 0.14 : 0);
+    const g = ref.current; if (!g) return; const s = Math.max(0.001, pop(dt));
+    g.position.x = px(dt); g.scale.set(s * (sw(dt) / r.w), s, s);
+    glow.current = Math.max(0, glow.current - dt * 0.8);
+    if (mat.current) mat.current.emissiveIntensity = glow.current * 0.55 + (type === "deep" ? 0.12 : 0);
   });
-  const marks: [number, number, number, number, number, number][] = [];
-  if (type === "moveout") extras = []; // empty home: no furniture // x z w h d y, in unit room space
-  if (r.kind === "living" && extras.includes("sofa")) marks.push([0, -0.3, 0.55, 0.9, 0.16, 0]);
-  if (r.kind === "living" && extras.includes("carpet")) marks.push([0, 0.12, 0.6, 0.12, 0.45, 0]);
-  if (r.kind === "kitchen" && extras.includes("oven")) marks.push([-0.22, -0.32, 0.18, 1.1, 0.18, 0]);
-  if (r.kind === "kitchen" && extras.includes("fridge")) marks.push([0.22, -0.32, 0.16, 2.4, 0.16, 0]);
   return (
     <group ref={ref}>
-      <mesh position={[0, BLOCK / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[1, BLOCK, 1]} />
-        <meshStandardMaterial ref={mat} color={TONE[r.kind]} emissive="#FFFFFF" emissiveIntensity={0} roughness={0.85} metalness={0} transparent={type === "moveout"} opacity={type === "moveout" ? 0.28 : 1} depthWrite={type !== "moveout"} />
-        <Edges color={type === "deep" ? "#FFFFFF" : type === "moveout" ? "#BDBDBD" : "#0E0E0E"} />
+      <mesh position={[0, 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[r.w - 0.03, D - 0.03]} />
+        <meshStandardMaterial ref={mat} color={FLOOR_TONE[r.kind]} roughness={1} emissive="#FFFFFF" emissiveIntensity={0} />
       </mesh>
-      {marks.map(([x, z, w, hh, d], i) => (
-        <mesh key={i} position={[x, BLOCK + (BLOCK * hh) / 2, z]} scale={[w, BLOCK * hh, d]}>
-          <boxGeometry />
-          <meshStandardMaterial color="#F2F2F2" roughness={0.6} />
-        </mesh>
-      ))}
+      {/* partition wall on the left side of every room except the first */}
+      <B p={[-r.w / 2, WALL_H * 0.4, 0]} s={[0.035, WALL_H * 0.8, D - 0.1]} c={G.part} />
+      <Furniture kind={r.kind} w={r.w} d={D} extras={extras} empty={type === "moveout"} top={top} />
     </group>
   );
 }
 
-function Stairs({ x, d, rise, run }: { x: number; d: number; rise: number; run: number }) {
-  const n = 9, w = run * 0.62, depth = (d * 0.8) / n;
-  return (
-    <group position={[x, 0, -d * 0.4]}>
-      {Array.from({ length: n }, (_, i) => {
-        const hgt = (rise * (i + 1)) / n;
-        return (
-          <mesh key={i} position={[0, hgt / 2, depth * (i + 0.5)]}>
-            <boxGeometry args={[w, hgt, depth * 0.96]} />
-            <meshStandardMaterial color="#3A3A3A" roughness={0.9} />
-          </mesh>
-        );
-      })}
-    </group>
-  );
-}
-
-function Floor({ plan, y, top, rise, focus, extras, balcony, windows, type }: { type: string; plan: FloorPlan; y: number; top: boolean; rise: number; focus: Focus | null; extras: string[]; balcony: boolean; windows: boolean }) {
+function Floor({ plan, y, top, focus, extras, balcony, windows, type }: { plan: FloorPlan; y: number; top: boolean; focus: Focus | null; extras: string[]; balcony: boolean; windows: boolean; type: string }) {
   const ref = useRef<THREE.Group>(null);
-  const py = useSpring(y, y + 1.4, 90, 15);
-  const fade = useRef(0);
-  const glass = useRef<THREE.MeshStandardMaterial>(null);
-  const sw = useSpring(plan.W, plan.W, 140, 18), sd = useSpring(plan.D, plan.D, 140, 18);
-  const slab = useRef<THREE.Mesh>(null), box = useRef<THREE.Mesh>(null), bal = useRef<THREE.Group>(null);
+  const py = useSpring(y, y + 1.4, 90, 15), sw = useSpring(plan.W, plan.W, 140, 18), sd = useSpring(plan.D, plan.D, 140, 18);
+  const slab = useRef<THREE.Mesh>(null), back = useRef<THREE.Mesh>(null), lw = useRef<THREE.Mesh>(null), rw = useRef<THREE.Mesh>(null), inner = useRef<THREE.Group>(null), bal = useRef<THREE.Group>(null);
   useFrame((_, dt) => {
     if (ref.current) ref.current.position.y = py(dt);
-    const w = sw(dt), d = sd(dt);
-    slab.current?.scale.set(w + 0.14, 1, d + 0.14); box.current?.scale.set(w, 1, d);
-    if (bal.current) bal.current.position.set(w * 0.12, 0, d / 2 + 0.32);
-    fade.current = Math.min(1, fade.current + dt * 2.2);
-    if (glass.current) glass.current.opacity = 0.1 * fade.current;
+    const w = sw(dt), d = sd(dt), sx = w / plan.W, sz = d / plan.D;
+    slab.current?.scale.set(w, 1, d); back.current?.scale.set(w, 1, 1); back.current?.position.setZ(-d / 2 + WALL_T / 2);
+    lw.current?.scale.set(1, 1, d); lw.current?.position.setX(-w / 2 + WALL_T / 2); rw.current?.scale.set(1, 1, d); rw.current?.position.setX(w / 2 - WALL_T / 2);
+    inner.current?.scale.set(sx, 1, sz);
+    bal.current?.position.set(-w * 0.1, -SLAB / 2, d / 2 + 0.25);
   });
   const { W, D } = plan;
   return (
     <group ref={ref}>
-      <mesh ref={slab} position={[0, -SLAB / 2, 0]} receiveShadow castShadow>
-        <boxGeometry args={[1, SLAB, 1]} />
-        <meshStandardMaterial color="#2C2C2C" roughness={0.9} />
-        <Edges color="#5A5A5A" />
-      </mesh>
-      {plan.rooms.map((r) => <Block key={r.id} r={r} focus={focus} extras={extras} type={type} />)}
-      {balcony && (
-        <group ref={bal}>
-          <mesh position={[0, -SLAB / 2, 0]}><boxGeometry args={[W * 0.5, SLAB, 0.5]} /><meshStandardMaterial color="#2C2C2C" /><Edges color="#5A5A5A" /></mesh>
-          <mesh position={[0, 0.14, 0]}><boxGeometry args={[W * 0.5, 0.28, 0.5]} /><meshStandardMaterial color="#9AA3AD" transparent opacity={0.06} depthWrite={false} /><Edges color="#CFCFCF" /></mesh>
-        </group>
-      )}
-      {windows && [-0.25, 0.25].map((f) => (
-        <mesh key={f} position={[W * f, WALL_H * 0.55, D / 2 + 0.002]}><planeGeometry args={[W * 0.22, WALL_H * 0.4]} /><meshStandardMaterial color="#FFFFFF" transparent opacity={0.22} side={THREE.DoubleSide} /><Edges color="#FFFFFF" /></mesh>
-      ))}
-      {!top && <Stairs x={-W / 2 + plan.hw / 2} d={D} rise={rise} run={plan.hw} />}
-      <mesh ref={box} position={[0, WALL_H / 2, 0]} renderOrder={2}>
-        <boxGeometry args={[1, WALL_H, 1]} />
-        <meshStandardMaterial ref={glass} color="#9AA3AD" transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} roughness={0.1} metalness={0.1} />
-        <Edges color="#FFFFFF" />
-      </mesh>
+      <mesh ref={slab} position={[0, -SLAB / 2, 0]} receiveShadow castShadow><boxGeometry args={[1, SLAB, 1]} /><M c={G.slab} /></mesh>
+      <mesh ref={back} position={[0, WALL_H / 2, -D / 2]} castShadow receiveShadow><boxGeometry args={[1, WALL_H, WALL_T]} /><M c={G.wall} /></mesh>
+      <mesh ref={lw} position={[-W / 2, WALL_H / 2, 0]} castShadow receiveShadow><boxGeometry args={[WALL_T, WALL_H, 1]} /><M c={G.wall} /></mesh>
+      <mesh ref={rw} position={[W / 2, WALL_H / 2, 0]} castShadow receiveShadow><boxGeometry args={[WALL_T, WALL_H, 1]} /><M c={G.wall} /></mesh>
+      <group ref={inner}>
+        {plan.rooms.map((r, i) => i === 0 ? <group key={r.id}><RoomView r={r} D={D} focus={focus} extras={extras} type={type} top={top} /></group> : <RoomView key={r.id} r={r} D={D} focus={focus} extras={extras} type={type} top={top} />)}
+        {windows && [-0.3, 0.05].map((f) => <B key={f} p={[W * f, WALL_H * 0.55, -D / 2 + WALL_T + 0.005]} s={[W * 0.16, WALL_H * 0.38, 0.01]} c="#BDBDBD" />)}
+      </group>
+      {balcony && <group ref={bal}><B p={[0, 0, 0]} s={[W * 0.4, SLAB, 0.5]} c={G.slab} /><B p={[0, 0.14, 0.23]} s={[W * 0.4, 0.22, 0.03]} c={G.wall} /></group>}
     </group>
   );
+}
+
+function hipRoof(W: number, D: number, h: number) {
+  const r = Math.max(0, W / 2 - D / 2), x = W / 2, z = D / 2;
+  const v = [[-x, 0, -z], [x, 0, -z], [x, 0, z], [-x, 0, z], [-r, h, 0], [r, h, 0]];
+  const f = [[3, 2, 5], [3, 5, 4], [1, 0, 4], [1, 4, 5], [2, 1, 5], [0, 3, 4], [0, 1, 2], [0, 2, 3]];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(f.flatMap((t) => t.flatMap((i) => v[i])), 3));
+  g.computeVertexNormals(); return g;
 }
 
 function Roof({ W, D, y, show, ghost }: { W: number; D: number; y: number; show: boolean; ghost: boolean }) {
-  const rm = useRef<THREE.MeshStandardMaterial>(null);
-  const op = useSpring(ghost ? 0.35 : 1, 1, 80, 16);
-  const ref = useRef<THREE.Group>(null);
-  const py = useSpring(y, y + 1, 90, 15), sc = useSpring(show ? 1 : 0, 0.001, 140, 16);
-  const geo = useMemo(() => {
-    const hw = D / 2 + 0.06, h = D * 0.3;
-    const s = new THREE.Shape(); s.moveTo(-hw, 0); s.lineTo(hw, 0); s.lineTo(0, h); s.closePath();
-    const g = new THREE.ExtrudeGeometry(s, { depth: W + 0.12, bevelEnabled: false });
-    g.translate(0, 0, -(W + 0.12) / 2); g.rotateY(Math.PI / 2); return g;
-  }, [W, D]);
+  const ref = useRef<THREE.Group>(null), rm = useRef<THREE.MeshStandardMaterial>(null);
+  const py = useSpring(y, y + 1, 90, 15), sc = useSpring(show ? 1 : 0, 0.001, 140, 16), op = useSpring(ghost ? 0.3 : 1, 1, 80, 16);
+  const geo = useMemo(() => hipRoof(W + 0.2, D + 0.2, D * 0.5), [W, D]);
   useFrame((_, dt) => {
-    const g = ref.current; if (!g) return;
-    const s = Math.max(0.001, sc(dt)); g.position.y = py(dt); if (rm.current) { const o = op(dt); rm.current.opacity = o; rm.current.depthWrite = o > 0.95; } g.scale.setScalar(s); g.visible = s > 0.02;
+    const g = ref.current; if (!g) return; const s = Math.max(0.001, sc(dt));
+    g.position.y = py(dt); g.scale.setScalar(s); g.visible = s > 0.02;
+    if (rm.current) { const o = op(dt); rm.current.opacity = o; rm.current.depthWrite = o > 0.95; }
   });
-  return (
-    <group ref={ref}>
-      <mesh geometry={geo} castShadow>
-        <meshStandardMaterial ref={rm} color="#4A4A4A" roughness={0.75} flatShading transparent />
-        <Edges color="#8A8A8A" />
-      </mesh>
-    </group>
-  );
+  return <group ref={ref}><mesh geometry={geo} castShadow><meshStandardMaterial ref={rm} color={G.roof} roughness={0.9} flatShading transparent side={THREE.DoubleSide} /></mesh></group>;
 }
 
 function Fit({ scale, y, spin, glide, children }: { scale: number; y: number; spin: boolean; glide: { y: number; n: number } | null; children: React.ReactNode }) {
-  const ref = useRef<THREE.Group>(null);
-  const until = useRef(0), seen = useRef(-1);
+  const ref = useRef<THREE.Group>(null), until = useRef(0), seen = useRef(-1), st = useRef({ x: y, v: 0 });
   useEffect(() => { if (glide && glide.n !== seen.current) { seen.current = glide.n; until.current = performance.now() + 1800; } }, [glide]);
-  const s = useSpring(scale, scale, 60, 14);
-  const sRef = useRef({ x: y, v: 0 });
-  useFrame((_, dt) => { const g = ref.current; if (!g) return; g.scale.setScalar(s(dt));
-    const t = glide && performance.now() < until.current ? 0.15 - glide.y : y;
-    const st = sRef.current, k = Math.min(dt, 1 / 30); st.v += ((t - st.x) * 40 - st.v * 12) * k; st.x += st.v * k; g.position.y = st.x; if (spin) g.rotation.y += dt * 0.08; });
+  const s = useSpring(scale, scale, 60, 14), rot = useRef(0);
+  useFrame((_, dt) => {
+    const g = ref.current; if (!g) return; g.scale.setScalar(s(dt));
+    const t = glide && performance.now() < until.current ? -glide.y : y;
+    const k = Math.min(dt, 1 / 30), p = st.current; p.v += ((t - p.x) * 40 - p.v * 12) * k; p.x += p.v * k; g.position.y = p.x;
+    if (spin) { rot.current += dt * 0.25; g.rotation.y = Math.sin(rot.current) * 0.35; }
+  });
   return <group ref={ref}>{children}</group>;
 }
 
 export default function House({ home, openFloors, roof, focus = null }: { home: Home; openFloors: boolean; roof: boolean; focus?: Focus | null }) {
   const extras = home.extras ?? [];
   const floors = useMemo(() => planFloors(home), [home]);
-  const [reduce, setReduce] = useState(false);
-  const [held, setHeld] = useState(false);
+  const [reduce, setReduce] = useState(false), [held, setHeld] = useState(false);
   useEffect(() => {
     const m = window.matchMedia("(prefers-reduced-motion: reduce)"); setReduce(m.matches);
-    const f = () => setReduce(m.matches); m.addEventListener("change", f);
-    return () => m.removeEventListener("change", f);
+    const f = () => setReduce(m.matches); m.addEventListener("change", f); return () => m.removeEventListener("change", f);
   }, []);
   const step = WALL_H + SLAB + (openFloors ? OPEN_GAP : 0);
   const prevFloors = useRef(home.floors), glideN = useRef(0);
   const glideFloor = useMemo(() => {
     let f = -1;
     if (home.floors !== prevFloors.current) { f = home.floors - 1; prevFloors.current = home.floors; }
-    else if (focus) {
-      const k = focus.kind;
-      f = k === "bedroom" ? (home.floors > 1 ? 1 : 0) : k === "bathroom" ? home.floors - 1 : ["kitchen", "living", "majlis", "maid"].includes(k) ? 0 : -1;
-    }
+    else if (focus) { const k = focus.kind; f = k === "bedroom" ? (home.floors > 1 ? 1 : 0) : k === "bathroom" ? home.floors - 1 : ["kitchen", "living", "majlis", "maid"].includes(k) ? 0 : -1; }
     return f;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [home.floors, focus?.n]);
   const topY = (home.floors - 1) * step + WALL_H;
-  const roofY = topY + (home.floors === 1 ? 1.15 : openFloors ? 0.95 : 0.02);
-  const height = roofY + (roof ? floors[0].D * 0.3 : 0);
-  const size = Math.max(floors[0].W * 1.05, floors[0].D, height * 0.95);
-  const fit = Math.min(1.3, 2.7 * Math.pow(size, -0.8));
-  // camera glide: move the changed floor's centre to the view centre for a moment (off with reduced motion or one floor)
-  const glide = useMemo(() => (glideFloor < 0 || reduce || home.floors === 1 ? null : { y: (glideFloor * step + WALL_H / 2) * fit, n: ++glideN.current }),
+  const roofY = topY + (home.floors === 1 ? 0.9 : openFloors ? 0.55 : 0.02);
+  const height = roofY + (roof ? floors[0].D * 0.5 : 0);
+  const size = Math.max(floors[0].W * 0.9, height * 0.95);
+  const fit = Math.min(0.75, 1.7 * Math.pow(size, -0.8));
+  const glide = useMemo(() => (glideFloor < 0 || reduce || home.floors === 1 ? null : { y: (glideFloor * step + WALL_H / 2) * fit - 0.2, n: ++glideN.current }),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [glideFloor, focus?.n, home.floors, reduce]);
+  const R = Math.max(floors[0].W, floors[0].D) * 0.85 + 0.6;
   return (
-    <Canvas
-      onPointerDown={() => setHeld(true)}
-      camera={{ position: [7.6, 5.6, 7.6], fov: 30 }}
-      dpr={[1, 1.75]} shadows gl={{ antialias: true, alpha: true }}
-      aria-label="3D model of your home">
-      <ambientLight intensity={0.55} />
-      <hemisphereLight args={["#FFFFFF", "#1A1A1A", 0.5]} />
-      <directionalLight position={[3, 10, 5]} intensity={1.6} castShadow shadow-mapSize={[1024, 1024]} />
-      <directionalLight position={[-6, 4, -4]} intensity={0.3} />
-      <Fit scale={fit} y={-(height * fit) / 2 + 0.15} spin={!reduce && !held} glide={glide}>
-        {floors.map((p, i) => <Floor key={i} plan={p} y={i * step} top={i === floors.length - 1} rise={step} focus={focus} extras={extras} balcony={!!home.rooms?.includes("balcony") && i === floors.length - 1 && floors.length > 1 || (!!home.rooms?.includes("balcony") && floors.length === 1)} windows={extras.includes("windows")} type={home.type} />)}
+    <Canvas onPointerDown={() => setHeld(true)} camera={{ position: [2.2, 2.4, 9.2], fov: 30 }} dpr={[1, 1.75]} shadows gl={{ antialias: true, alpha: true }} aria-label="3D model of your home">
+      <ambientLight intensity={1.1} />
+      <hemisphereLight args={["#FFFFFF", "#3A3A3A", 0.6]} />
+      <directionalLight position={[3, 9, 7]} intensity={1.1} castShadow shadow-mapSize={[1024, 1024]} shadow-camera-left={-6} shadow-camera-right={6} shadow-camera-top={6} shadow-camera-bottom={-6} />
+      <directionalLight position={[-5, 3, 6]} intensity={0.35} />
+      <Fit scale={fit} y={-(height * fit) / 2 + 0.35} spin={!reduce && !held} glide={glide}>
+        {floors.map((p, i) => <Floor key={i} plan={p} y={i * step} top={i === floors.length - 1} focus={focus} extras={extras}
+          balcony={!!home.rooms?.includes("balcony") && i === floors.length - 1} windows={extras.includes("windows")} type={home.type} />)}
         <Roof W={floors[0].W} D={floors[0].D} y={roofY} show={roof} ghost={home.floors === 1} />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -SLAB - 0.005, 0]} receiveShadow>
-          <circleGeometry args={[4.2, 64]} />
-          <meshStandardMaterial color="#141414" roughness={1} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -SLAB - 0.01, 0]} scale={[1.5, 1, 1]} receiveShadow>
+          <circleGeometry args={[R, 72]} /><meshStandardMaterial color="#4A4A4A" roughness={1} />
         </mesh>
-        <ContactShadows position={[0, -SLAB, 0]} opacity={0.6} scale={8} blur={2.6} far={3} />
+        <ContactShadows position={[0, -SLAB, 0]} opacity={0.45} scale={R * 3} blur={2.4} far={2} />
       </Fit>
-      <OrbitControls makeDefault enablePan={false} enableZoom minDistance={7} maxDistance={16} minPolarAngle={0.55} maxPolarAngle={1.2} enableDamping />
+      <OrbitControls makeDefault enablePan={false} enableZoom minDistance={6.5} maxDistance={14} minPolarAngle={0.9} maxPolarAngle={1.5} minAzimuthAngle={-1.1} maxAzimuthAngle={1.1} enableDamping />
     </Canvas>
   );
 }

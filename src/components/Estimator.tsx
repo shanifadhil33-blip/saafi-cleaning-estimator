@@ -59,7 +59,6 @@ export default function Estimator({ company: c }: { company: Company }) {
     <main className="page">
       <header className="top">
         <div className="logo">{c.brand.name}</div>
-        <span className="tag">{c.brand.tagline}</span>
       </header>
       <section className="hero">
         <h1>Price your home cleaning</h1>
@@ -67,19 +66,22 @@ export default function Estimator({ company: c }: { company: Company }) {
       </section>
 
       <div className="layout">
-        <section className="controls" aria-label="Your home">
+        <section className="controls card" aria-label="Your home">
           <div className="field">
             <div className="row">
               <label className="label" htmlFor="area">Square footage</label>
-              <span className="value-box big-value">{areaText}</span>
+              <span className="range-note">{fmt(c.sqft.min)} to {fmt(c.sqft.max)} sq ft</span>
             </div>
-            <input id="area" type="range" min={c.sqft.min} max={c.sqft.max} step={c.sqft.step} value={home.sqft}
+            <div className="slide-row"><input id="area" type="range" min={c.sqft.min} max={c.sqft.max} step={c.sqft.step} value={home.sqft}
               onChange={(e) => set({ sqft: +e.target.value })} aria-valuetext={areaText}
               style={{ "--p": `${((home.sqft - c.sqft.min) / (c.sqft.max - c.sqft.min)) * 100}%` } as React.CSSProperties} />
-            <div className="ends"><span>{fmt(c.sqft.min)}</span><span>{fmt(c.sqft.max)} sq ft</span></div>
+            <span className="value-box big-value" aria-hidden="true">{fmt(home.sqft)}</span></div>
           </div>
+          <div className="field"><span className="label">Floors</span>
+            <div className="seg floors" role="group" aria-label="Floors">
+              {[1, 2, 3].map((f) => <button key={f} type="button" aria-pressed={home.floors === f} onClick={() => set({ floors: f as 1 | 2 | 3 })}>{f}</button>)}
+            </div></div>
           <div className="field steps">
-            <Stepper label="Floors" value={home.floors} step={1} min={1} max={3} onChange={(v) => set({ floors: v as 1 | 2 | 3 })} />
             <Stepper label="Bedrooms" value={home.bedrooms} step={1} min={0} max={8} onChange={(v) => { set({ bedrooms: v }); bump("bedroom"); }} />
             <Stepper label="Bathrooms" value={home.bathrooms} step={0.5} min={1} max={8} onChange={(v) => { set({ bathrooms: v }); bump("bathroom"); }} />
           </div>
@@ -108,8 +110,9 @@ export default function Estimator({ company: c }: { company: Company }) {
         </section>
 
         <section className="model model-wrap" aria-label="3D model">
-          <p className="home-label" aria-live="polite">{homeLabel(c, home)}</p>
-          <div className="canvas">
+          <div className="canvas card">
+            <div className="model-head"><h2 className="model-title">A {home.floors} floor home</h2>
+              <p className="home-label" aria-live="polite">{homeLabel(c, home).replace(/^A \d floor home: /, "")}</p></div>
             <House home={home} openFloors={openFloors} roof={roof} focus={focus} />
             <div className="toggles">
               <button type="button" className="chip" aria-pressed={openFloors} onClick={() => setOpenFloors((v) => !v)}>Open floors</button>
@@ -123,8 +126,8 @@ export default function Estimator({ company: c }: { company: Company }) {
         </section>
 
         <section className="summary" aria-label="Your estimate">
-          <div className="total" aria-live="polite"><small>{c.currency}</small>{fmt(total)}</div>
-          <div className="crew">About {est.hours} hours with a crew of {est.crew}{est.saving ? ` · you save ${c.currency} ${fmt(est.saving)} a visit` : ""}</div>
+          <div className="price-row"><div className="total" aria-live="polite"><small>{c.currency}</small>{fmt(total)}</div>
+          <div className="crew">About {est.hours} hours with a crew of {est.crew}{est.saving ? ` · you save ${c.currency} ${fmt(est.saving)} a visit` : ""}</div></div>
           <ul className="lines">
             {est.lines.filter((l) => l.amount > 0 || l.key === "area").map((l) => (
               <li key={l.key}><span>{l.label}</span><span>{l.amount < 0 ? "minus " : ""}{c.currency} {fmt(Math.abs(l.amount))}</span></li>

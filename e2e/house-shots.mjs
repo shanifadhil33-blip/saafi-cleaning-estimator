@@ -4,7 +4,7 @@ import fs from "fs"; fs.mkdirSync(OUT, { recursive: true });
 const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--no-sandbox", "--enable-unsafe-swiftshader", "--use-angle=swiftshader"] });
 const p = await (await b.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" })).newPage();
 await p.goto(BASE); await p.waitForSelector("canvas"); await p.waitForTimeout(2500);
-const setFloors = async (n) => { for (let i = 0; i < 3; i++) { const v = +(await p.locator('[aria-label="Floors"] output').innerText()); if (v === n) break; await p.getByRole("button", { name: v > n ? "Fewer floors" : "More floors" }).click(); } };
+const setFloors = async (n) => p.getByRole("group", { name: "Floors" }).getByRole("button", { name: String(n) }).click();
 for (const n of [1, 2, 3]) { await setFloors(n); await p.waitForTimeout(2500); await p.locator(".canvas").screenshot({ path: `${OUT}/house-${n}floor.png` }); }
 await p.getByRole("button", { name: "Open floors" }).click(); await p.waitForTimeout(2500); await p.locator(".canvas").screenshot({ path: `${OUT}/house-3floor-closed.png` });
 await p.getByRole("button", { name: "Open floors" }).click(); await p.waitForTimeout(1500); await p.screenshot({ path: `${OUT}/page-1440.png` });
