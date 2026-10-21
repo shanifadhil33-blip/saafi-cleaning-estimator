@@ -146,3 +146,8 @@ input[type=range]::-moz-range-progress{background:#8A8A8A}input[type=range]::-mo
 .lines li{font-size:14px}
 @media (min-width:1024px){.canvas{height:min(680px,calc(100vh - 120px))}}
 .model-head{max-width:calc(100% - 190px)}@media (max-width:420px){.model-title{font-size:20px}}
+.label{font-size:16px}.sub{font-size:17.5px}.range-note{font-size:14px}.value-box{font-size:17px}
+.stepper{height:50px}.stepper output{font-size:17px}.seg.floors button{height:44px;font-size:16px}
+.tname{font-size:16px}.tname small{font-size:13.5px}.rate{font-size:14px}.lines li{font-size:15px}.crew{font-size:14.5px}
+.model-title{font-size:26px}.model-head .home-label{font-size:13px}.chip{font-size:13.5px;padding:8px 14px}.legend{font-size:12.5px}.hint{font-size:12.5px}
+@media (min-width:1024px){h1{font-size:62px}.total{font-size:60px}}

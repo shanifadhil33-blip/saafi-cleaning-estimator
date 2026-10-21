@@ -8,6 +8,8 @@ const setFloors = async (n) => p.getByRole("group", { name: "Floors" }).getByRol
 for (const n of [1, 2, 3]) { await setFloors(n); await p.waitForTimeout(2500); await p.locator(".canvas").screenshot({ path: `${OUT}/house-${n}floor.png` }); }
 await p.getByRole("button", { name: "Open floors" }).click(); await p.waitForTimeout(2500); await p.locator(".canvas").screenshot({ path: `${OUT}/house-3floor-closed.png` });
 await p.getByRole("button", { name: "Open floors" }).click(); await p.waitForTimeout(1500); await p.screenshot({ path: `${OUT}/page-1440.png` });
+for (const [w,h] of [[360,780],[390,844]]) { const m = await (await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, reducedMotion: "reduce" })).newPage(); await m.goto(BASE); await m.waitForSelector("canvas");
+  for (const n of [1,3]) { await m.getByRole("group", { name: "Floors" }).getByRole("button", { name: String(n) }).click(); await m.locator("#area").fill(n===1?"6000":"6000"); await m.waitForTimeout(2500); await m.locator(".canvas").screenshot({ path: `${OUT}/phone-${w}-${n}floor-6000.png` }); } }
 const shot = async (n) => { await p.waitForTimeout(2200); await p.locator(".canvas").screenshot({ path: `${OUT}/${n}.png` }); };
 await p.locator("#area").fill("800"); await shot("drive-sqft-800");
 await p.locator("#area").fill("6000"); await shot("drive-sqft-6000");

@@ -1,5 +1,5 @@
 "use client";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, ContactShadows } from "@react-three/drei";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -131,7 +131,7 @@ function Floor({ plan, y, top, focus, extras, balcony, windows, type }: { plan: 
       <mesh ref={rw} position={[W / 2, WALL_H / 2, 0]} castShadow receiveShadow><boxGeometry args={[WALL_T, WALL_H, 1]} /><M c={G.wall} /></mesh>
       <group ref={inner}>
         {plan.rooms.map((r, i) => i === 0 ? <group key={r.id}><RoomView r={r} D={D} focus={focus} extras={extras} type={type} top={top} /></group> : <RoomView key={r.id} r={r} D={D} focus={focus} extras={extras} type={type} top={top} />)}
-        {windows && [-0.3, 0.05].map((f) => <B key={f} p={[W * f, WALL_H * 0.55, -D / 2 + WALL_T + 0.005]} s={[W * 0.16, WALL_H * 0.38, 0.01]} c="#BDBDBD" />)}
+        {windows && type !== "moveout" && [-0.3, 0.05].map((f) => <B key={f} p={[W * f, WALL_H * 0.55, -D / 2 + WALL_T + 0.005]} s={[W * 0.16, WALL_H * 0.38, 0.01]} c="#BDBDBD" />)}
       </group>
       {balcony && <group ref={bal}><B p={[0, 0, 0]} s={[W * 0.4, SLAB, 0.5]} c={G.slab} /><B p={[0, 0.14, 0.23]} s={[W * 0.4, 0.22, 0.03]} c={G.wall} /></group>}
     </group>
@@ -149,7 +149,7 @@ function hipRoof(W: number, D: number, h: number) {
 
 function Roof({ W, D, y, show, ghost }: { W: number; D: number; y: number; show: boolean; ghost: boolean }) {
   const ref = useRef<THREE.Group>(null), rm = useRef<THREE.MeshStandardMaterial>(null);
-  const py = useSpring(y, y + 1, 90, 15), sc = useSpring(show ? 1 : 0, 0.001, 140, 16), op = useSpring(ghost ? 0.3 : 1, 1, 80, 16);
+  const py = useSpring(y, y + 1, 90, 15), sc = useSpring(show ? 1 : 0, 0.001, 140, 16), op = useSpring(ghost ? 0.12 : 1, 1, 80, 16);
   const geo = useMemo(() => hipRoof(W + 0.2, D + 0.2, D * 0.5), [W, D]);
   useFrame((_, dt) => {
     const g = ref.current; if (!g) return; const s = Math.max(0.001, sc(dt));
@@ -157,6 +157,24 @@ function Roof({ W, D, y, show, ghost }: { W: number; D: number; y: number; show:
     if (rm.current) { const o = op(dt); rm.current.opacity = o; rm.current.depthWrite = o > 0.95; }
   });
   return <group ref={ref}><mesh geometry={geo} castShadow><meshStandardMaterial ref={rm} color={G.roof} roughness={0.9} flatShading transparent side={THREE.DoubleSide} /></mesh></group>;
+}
+
+const DIR = new THREE.Vector3(2.2, 2.4, 9.2).normalize();
+/** Keeps the whole scene (roof to ground ellipse) inside the canvas with margin, for any aspect. */
+function CameraFit({ w, h }: { w: number; h: number }) {
+  const { camera, size, controls } = useThree();
+  const cur = useRef(0);
+  useFrame((_, dt) => {
+    const cam = camera as THREE.PerspectiveCamera, t = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)), aspect = size.width / size.height;
+    const want = Math.max(h / (2 * t), w / (2 * t * aspect)) * 1.45 + w * 0.35;
+    const c = controls as unknown as { minDistance: number; maxDistance: number; getDistance?: () => number } | null;
+    if (!cur.current) cur.current = want;
+    const prev = cur.current; cur.current += (want - cur.current) * (1 - Math.exp(-dt * 4));
+    const d = cam.position.length() * (cur.current / prev);
+    if (c) { c.minDistance = cur.current * 0.7; c.maxDistance = cur.current * 1.5; }
+    cam.position.setLength(Math.min(Math.max(d, cur.current * 0.7), cur.current * 1.5));
+  });
+  return null;
 }
 
 function Fit({ scale, y, spin, glide, children }: { scale: number; y: number; spin: boolean; glide: { y: number; n: number } | null; children: React.ReactNode }) {
@@ -190,21 +208,20 @@ export default function House({ home, openFloors, roof, focus = null }: { home: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [home.floors, focus?.n]);
   const topY = (home.floors - 1) * step + WALL_H;
-  const roofY = topY + (home.floors === 1 ? 0.9 : openFloors ? 0.55 : 0.02);
+  const roofY = topY + (home.floors === 1 ? 1.3 : openFloors ? 0.55 : 0.02);
   const height = roofY + (roof ? floors[0].D * 0.5 : 0);
-  const size = Math.max(floors[0].W * 0.9, height * 0.95);
-  const fit = Math.min(0.75, 1.7 * Math.pow(size, -0.8));
+  const fit = 1;
   const glide = useMemo(() => (glideFloor < 0 || reduce || home.floors === 1 ? null : { y: (glideFloor * step + WALL_H / 2) * fit - 0.2, n: ++glideN.current }),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [glideFloor, focus?.n, home.floors, reduce]);
   const R = Math.max(floors[0].W, floors[0].D) * 0.85 + 0.6;
   return (
-    <Canvas onPointerDown={() => setHeld(true)} camera={{ position: [2.2, 2.4, 9.2], fov: 30 }} dpr={[1, 1.75]} shadows gl={{ antialias: true, alpha: true }} aria-label="3D model of your home">
+    <Canvas onPointerDown={() => setHeld(true)} camera={{ position: [2.2, 2.4, 9.2], fov: 30 }} resize={{ debounce: 0 }} dpr={[1, 1.75]} shadows gl={{ antialias: true, alpha: true }} aria-label="3D model of your home">
       <ambientLight intensity={1.1} />
       <hemisphereLight args={["#FFFFFF", "#3A3A3A", 0.6]} />
       <directionalLight position={[3, 9, 7]} intensity={1.1} castShadow shadow-mapSize={[1024, 1024]} shadow-camera-left={-6} shadow-camera-right={6} shadow-camera-top={6} shadow-camera-bottom={-6} />
       <directionalLight position={[-5, 3, 6]} intensity={0.35} />
-      <Fit scale={fit} y={-(height * fit) / 2 + 0.35} spin={!reduce && !held} glide={glide}>
+      <Fit scale={fit} y={-(height - SLAB) / 2 + 0.25 + R * 0.12} spin={!reduce && !held} glide={glide}>
         {floors.map((p, i) => <Floor key={i} plan={p} y={i * step} top={i === floors.length - 1} focus={focus} extras={extras}
           balcony={!!home.rooms?.includes("balcony") && i === floors.length - 1} windows={extras.includes("windows")} type={home.type} />)}
         <Roof W={floors[0].W} D={floors[0].D} y={roofY} show={roof} ghost={home.floors === 1} />
@@ -213,7 +230,8 @@ export default function House({ home, openFloors, roof, focus = null }: { home: 
         </mesh>
         <ContactShadows position={[0, -SLAB, 0]} opacity={0.45} scale={R * 3} blur={2.4} far={2} />
       </Fit>
-      <OrbitControls makeDefault enablePan={false} enableZoom minDistance={6.5} maxDistance={14} minPolarAngle={0.9} maxPolarAngle={1.5} minAzimuthAngle={-1.1} maxAzimuthAngle={1.1} enableDamping />
+      <CameraFit w={R * 3} h={height + 0.8 + R * 0.5} />
+      <OrbitControls makeDefault enablePan={false} enableZoom minPolarAngle={0.9} maxPolarAngle={1.5} minAzimuthAngle={-1.1} maxAzimuthAngle={1.1} enableDamping />
     </Canvas>
   );
 }
