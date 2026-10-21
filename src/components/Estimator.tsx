@@ -101,7 +101,7 @@ export default function Estimator({ company: c }: { company: Company }) {
 
     <main className={`page sheet-${sheet}`}>
       <header className="top">
-        <div className="logo">{c.brand.name}</div>
+        {c.brand.name ? <div className="logo">{c.brand.name}</div> : <span />}
         <div className="langs" role="group" aria-label={t("Language")}>{LANGS.map((x) => <button key={x.id} type="button" lang={x.id} aria-pressed={lang === x.id} onClick={() => setLang(x.id)}>{x.label}</button>)}</div>
       </header>
       <section className="hero">
@@ -115,14 +115,16 @@ export default function Estimator({ company: c }: { company: Company }) {
             <div className="model-head"><h2 className="model-title">{P.title(home.floors)}</h2>
               <p className="home-label" aria-live="polite">{lang === "en" ? homeLabel(c, home).replace(/^A \d floor home: /, "") : sub}</p></div>
             <House home={home} openFloors={openFloors} roof={roof} focus={focus} />
-            <div className="toggles">
-              <button type="button" className="chip" aria-pressed={openFloors} onClick={() => setOpenFloors((v) => !v)}>{t("Open floors")}</button>
-              <button type="button" className="chip" aria-pressed={roof} onClick={() => setRoof((v) => !v)}>{t("Roof")}</button>
+            <div className="model-foot">
+              <div className="toggles">
+                <button type="button" className="chip" aria-label={t("Open floors")} title={t("Open floors")} aria-pressed={openFloors} onClick={() => setOpenFloors((v) => !v)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" /><path d="M5 2.5v3M11 6.5v3M7 10.5v3" opacity=".5" /></svg><span>{t("Open floors")}</span></button>
+                <button type="button" className="chip" aria-label={t("Roof")} title={t("Roof")} aria-pressed={roof} onClick={() => setRoof((v) => !v)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8.5 8 3l6 5.5M4 7v6h8V7" /></svg><span>{t("Roof")}</span></button>
+              </div>
+              <ul className="legend">
+                {Object.keys(ROOM_COLORS).map((k) => <li key={k}><i style={{ background: ROOM_COLORS[k] }} />{t(ROOM_NAMES[k])}</li>)}
+              </ul>
+              <span className="hint"><span className="fine">{t("Drag to turn · scroll to zoom")}</span><span className="coarse">{t("Drag to turn")}</span></span>
             </div>
-            <ul className="legend">
-              {Object.keys(ROOM_COLORS).map((k) => <li key={k}><i style={{ background: ROOM_COLORS[k] }} />{t(ROOM_NAMES[k])}</li>)}
-            </ul>
-            <span className="hint"><span className="fine">{t("Drag to turn · scroll to zoom")}</span><span className="coarse">{t("Drag to turn")}</span></span>
           </div>
         </section>
         <div className="sheet" ref={sheetRef} data-state={sheet} style={drag != null ? { transform: `translateY(${drag}px)`, transition: "none" } : undefined}>

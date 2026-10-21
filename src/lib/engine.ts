@@ -66,7 +66,7 @@ export function homeLabel(c: Company, h: Home, unit: "sqft" | "sqm" = "sqft") {
 export interface Booking { name: string; phone: string; email: string; address: string; date: string; time: string; notes: string }
 export function whatsappUrl(c: Company, h: Home, e: Estimate, b: Booking, unit: "sqft" | "sqm" = "sqft") {
   const text = [
-    `Hello ${c.brand.name}, I would like to book a cleaning.`,
+    `Hello${c.brand.name ? ` ${c.brand.name}` : ""}, I would like to book a cleaning.`,
     "",
     homeLabel(c, h, unit),
     `Estimate: ${c.currency} ${fmt(e.total)} (VAT included)`,

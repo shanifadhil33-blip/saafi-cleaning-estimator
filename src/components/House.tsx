@@ -165,7 +165,7 @@ function CameraFit({ w, h }: { w: number; h: number }) {
   const cur = useRef(0);
   useFrame((_, dt) => {
     const cam = camera as THREE.PerspectiveCamera, t = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)), aspect = size.width / size.height;
-    const want = Math.max(h / (2 * t), w / (2 * t * aspect)) * 1.45 + w * 0.35;
+    const want = Math.max(h / (2 * t) * 1.2, w / (2 * t * aspect) * 1.08) + w * 0.3;
     const c = controls as unknown as { minDistance: number; maxDistance: number; getDistance?: () => number } | null;
     if (!cur.current) cur.current = want;
     const prev = cur.current; cur.current += (want - cur.current) * (1 - Math.exp(-dt * 4));
@@ -224,12 +224,12 @@ export default function House({ home, openFloors, roof, focus = null }: { home: 
         {floors.map((p, i) => <Floor key={i} plan={p} y={i * step} top={i === floors.length - 1} focus={focus} extras={extras}
           balcony={!!home.rooms?.includes("balcony") && i === floors.length - 1} windows={extras.includes("windows")} type={home.type} />)}
         <Roof W={floors[0].W} D={floors[0].D} y={roofY} show={roof} ghost={home.floors === 1} />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -SLAB - 0.01, 0]} scale={[1.5, 1, 1]} receiveShadow>
-          <circleGeometry args={[R, 72]} /><meshStandardMaterial color="#4A4A4A" roughness={1} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -SLAB - 0.01, 0]} scale={[1.25, 1, 1]} receiveShadow>
+          <circleGeometry args={[R * 0.8, 72]} /><meshStandardMaterial color="#4A4A4A" roughness={1} />
         </mesh>
         <ContactShadows position={[0, -SLAB, 0]} opacity={0.45} scale={R * 3} blur={2.4} far={2} />
       </Fit>
-      <CameraFit w={R * 3} h={height + 0.8 + R * 0.5} />
+      <CameraFit w={R * 2.1} h={height + 1.2 + R * 0.6} />
       <OrbitControls makeDefault enablePan={false} enableZoom minPolarAngle={0.9} maxPolarAngle={1.5} minAzimuthAngle={-1.1} maxAzimuthAngle={1.1} enableDamping />
     </Canvas>
   );

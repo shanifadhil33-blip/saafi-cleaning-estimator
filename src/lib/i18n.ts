@@ -74,6 +74,6 @@ export function phr(lang: Lang) {
     clean: (t: string) => lang === "en" ? `${t.toLowerCase()} cleaning` : t,
     fewer: (l: string) => lang === "en" ? `Fewer ${l.toLowerCase()}` : `− ${l}`,
     more: (l: string) => lang === "en" ? `More ${l.toLowerCase()}` : `+ ${l}`,
-    sent: (b: string) => lang === "ur" ? `آپ کی بکنگ لکھ دی گئی ہے۔ ${b} کے ساتھ تصدیق کے لیے واٹس ایپ میں بھیجیں دبائیں۔` : lang === "ar" ? `تمت كتابة حجزك. اضغط إرسال في واتساب لتأكيده مع ${b}.` : `Your booking is written out. Press send in WhatsApp to confirm it with ${b}.`,
+    sent: (b: string) => lang === "ur" ? `آپ کی بکنگ لکھ دی گئی ہے۔ ${b ? `${b} کے ساتھ ` : ""}تصدیق کے لیے واٹس ایپ میں بھیجیں دبائیں۔` : lang === "ar" ? `تمت كتابة حجزك. اضغط إرسال في واتساب لتأكيده${b ? ` مع ${b}` : ""}.` : `Your booking is written out. Press send in WhatsApp to confirm it${b ? ` with ${b}` : ""}.`,
   };
 }
