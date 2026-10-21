@@ -3,7 +3,7 @@
    Kept from ours: phone split sheet with handle, EN/AR/UR with RTL, WhatsApp booking, no brand, /c/[slug] config.
    Added: home types (studio, apartment, townhouse, villa, penthouse), GCC bedroom wording, maid's room, sq ft or sq m, pool for villas. */
 import dynamic from "next/dynamic";
-import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, LayoutGroup, MotionConfig, animate, motion, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { STR, MORE, REAL, arBaths, arFloors, type Lang } from "@/lib/strings";
 import { KINDS, SQM, autoSize, extrasFor, fitKind, initial, isClosed, maidAllowed, quote, refCode, slots, switchKind, waUrl, waWebUrl, type CleanType, type Company, type HomeKind, type State } from "@/lib/quote";
@@ -12,7 +12,7 @@ const HouseCanvas = dynamic(() => import("./House"), { ssr: false });
 const EASE = [0.22, 1, 0.36, 1] as const;
 const nf = new Intl.NumberFormat("en-US");
 const fmt = (n: number) => nf.format(Math.round(n));
-const LANGS: { id: Lang; label: string }[] = [{ id: "en", label: "English" }, { id: "ar", label: "العربية" }, { id: "ur", label: "اردو" }];
+const LANGS: { id: Lang; label: string }[] = [{ id: "en", label: "EN" }, { id: "hi", label: "हिं" }, { id: "ur", label: "اردو" }, { id: "ar", label: "عربي" }];
 const store = { get: (k: string) => { try { return localStorage.getItem("estimator." + k); } catch { return null; } }, set: (k: string, v: string) => { try { localStorage.setItem("estimator." + k, v); } catch { /* off */ } } };
 const useIso = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -92,14 +92,14 @@ export default function Estimator({ company: c }: { company: Company }) {
   const t = { ...STR[lang], ...MORE[lang], ...REAL[lang] };
   const set = useCallback((f: (p: State) => State) => setRaw((p) => fitKind(c, f(p))), [c]);
   const K = c.kinds[s.kind];
-  const brand = c.brand[lang] || c.brand.en || "";
+  const brand = (c.brand as Record<string, string>)[lang] || c.brand.en || "";
   const q = useMemo(() => quote(c, s), [c, s]);
   const price = useCount(q.total);
   const money = (n: number) => t.money(fmt(n));
 
   useEffect(() => {
     const u = new URLSearchParams(location.search).get("lang"), st = store.get("lang");
-    const l = (["en", "ar", "ur"] as Lang[]).find((x) => x === u) ?? (["en", "ar", "ur"] as Lang[]).find((x) => x === st);
+    const l = (["en", "ar", "ur", "hi"] as Lang[]).find((x) => x === u) ?? (["en", "ar", "ur", "hi"] as Lang[]).find((x) => x === st);
     if (l) setLangState(l);
     if (store.get("unit") === "m") setUnit("m");
   }, []);
@@ -111,13 +111,13 @@ export default function Estimator({ company: c }: { company: Company }) {
   const uName = unit === "m" ? t.sqm : t.sqft;
   const sizeStr = (sq: number) => `${fmt(toU(sq))} ${uName}`;
   const bedsShow = (n: number) => t.bedsLabel(n);
-  const bathStr = (n: number) => (lang === "ar" ? arBaths(n) : lang === "ur" ? `${n} باتھ روم` : `${n} bath`);
+  const bathStr = (n: number) => (lang === "ar" ? arBaths(n) : lang === "ur" ? `${n} باتھ روم` : lang === "hi" ? `${n} बाथरूम` : `${n} bath`);
   const homeTitle = typeof t.kindHome[s.kind] === "function" ? t.kindHome[s.kind](s.floors) : t.kindHome[s.kind];
-  const sep = lang === "en" ? ", " : "، ";
+  const sep = lang === "en" || lang === "hi" ? ", " : "، ";
   const sub = [sizeStr(s.sqft), bedsShow(s.beds) + (s.maid ? ` + ${t.maid}` : ""), bathStr(s.baths), lang === "en" ? t.typeLong[s.type].toLowerCase() : t.typeLong[s.type]].join(sep);
-  const homeLine = [t.kinds[s.kind], sizeStr(s.sqft), lang === "ar" ? arFloors(s.floors) : lang === "ur" ? `${s.floors} ${s.floors === 1 ? "منزل" : "منزلیں"}` : `${s.floors} ${s.floors === 1 ? "floor" : "floors"}`, bedsShow(s.beds), bathStr(s.baths), ...(s.maid ? [t.maid] : [])].join(sep);
+  const homeLine = [t.kinds[s.kind], sizeStr(s.sqft), lang === "ar" ? arFloors(s.floors) : lang === "ur" ? `${s.floors} ${s.floors === 1 ? "منزل" : "منزلیں"}` : lang === "hi" ? `${s.floors} फ्लोर` : `${s.floors} ${s.floors === 1 ? "floor" : "floors"}`, bedsShow(s.beds), bathStr(s.baths), ...(s.maid ? [t.maid] : [])].join(sep);
   const exName = (k: string) => t.ex[k] ?? t.ex2[k] ?? k;
-  const range = (a: number, b: number) => t.range(money(a), lang === "en" ? fmt(b) : money(b));
+  const range = (a: number, b: number) => t.range(money(a), lang === "en" || lang === "hi" ? fmt(b) : money(b));
 
   /* sheet (phone) */
   const sheetRef = useRef<HTMLElement>(null), scrollRef = useRef<HTMLDivElement>(null), barRef = useRef<HTMLDivElement>(null), topRef = useRef<HTMLElement>(null);
@@ -353,12 +353,63 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
   const [ref] = useState(() => refCode(c));
   const [now] = useState(() => new Date());
   const nameRef = useRef<HTMLInputElement>(null), areaRef = useRef<HTMLInputElement>(null), dlg = useRef<HTMLDivElement>(null);
+  /* Android back closes the sheet: one history entry while open. */
+  const viaBack = useRef(false);
+  const onCloseRef = useRef(onClose); onCloseRef.current = onClose;
+  const requestClose = useCallback(() => {
+    if (!history.state?.bk) { viaBack.current = true; onCloseRef.current(); return; }
+    history.back();
+    setTimeout(() => { if (!viaBack.current) { viaBack.current = true; onCloseRef.current(); } }, 400);
+  }, []);
+  const closeRef = useRef(requestClose); closeRef.current = requestClose;
+  useEffect(() => {
+    viaBack.current = false;
+    history.pushState({ ...(history.state || {}), bk: 1 }, "");
+    const pop = () => { if (viaBack.current) return; viaBack.current = true; onCloseRef.current(); };
+    addEventListener("popstate", pop);
+    return () => { removeEventListener("popstate", pop); if (!viaBack.current && history.state?.bk) history.back(); };
+  }, []);
+  /* Swipe down to close on phone: from the handle or header, or anywhere once the sheet is scrolled to the top. */
+  const H = typeof window === "undefined" ? 800 : window.innerHeight;
+  const y = useMotionValue(phone ? H : 0);
+  const scrimOpacity = useTransform(y, (v) => (phone ? Math.max(0, Math.min(1, 1 - v / ((dlg.current?.offsetHeight || H) * 1.1))) : 1));
+  useEffect(() => {
+    const el = dlg.current; if (!el || !phone) return;
+    let st: null | { x0: number; y0: number; grab: boolean; top: boolean; active: boolean; off: number; t0: number; ly: number; lt: number; v: number } = null;
+    const start = (e: TouchEvent) => {
+      const tg = e.target as HTMLElement, p0 = e.touches[0];
+      if (e.touches.length > 1 || tg.closest("input, textarea, select, [contenteditable]")) { st = null; return; }
+      st = { x0: p0.clientX, y0: p0.clientY, grab: !!tg.closest(".dlg-handle, .dlg-head") && !tg.closest("button"), top: el.scrollTop <= 0, active: false, off: 0, t0: performance.now(), ly: p0.clientY, lt: performance.now(), v: 0 };
+    };
+    const move = (e: TouchEvent) => {
+      if (!st) return; const p0 = e.touches[0], dy = p0.clientY - st.y0, dx = p0.clientX - st.x0;
+      if (!st.active) {
+        if (Math.abs(dx) > Math.abs(dy) + 2) { st = null; return; }
+        if (dy > 6 && (st.grab || (st.top && el.scrollTop <= 0))) { st.active = true; st.off = 6; }
+        else if (dy < -4) { st = null; return; } else return;
+      }
+      e.preventDefault();
+      const now = performance.now(), dt = Math.max(1, now - st.lt); st.v = 0.7 * st.v + 0.3 * ((p0.clientY - st.ly) / dt); st.ly = p0.clientY; st.lt = now;
+      y.set(Math.max(0, dy - st.off));
+    };
+    const end = () => {
+      if (!st || !st.active) { st = null; return; }
+      const h = el.offsetHeight, far = y.get() > h * 0.28, el2 = performance.now() - st.t0, fast = st.v > 0.55 || (el2 < 300 && y.get() > 40 && y.get() / Math.max(1, el2) > 0.3); st = null;
+      if (far || fast) { animate(y, h, { duration: 0.2, ease: [0.4, 0, 1, 1] }).then(() => closeRef.current()); }
+      else animate(y, 0, { type: "spring", stiffness: 520, damping: 42 });
+    };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end); el.addEventListener("touchcancel", end);
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
+  }, [phone, y]);
   useEffect(() => {
     setF((x) => ({ ...x, name: store.get("name") || "", area: store.get("area") || "", building: store.get("building") || "", unit: store.get("unit") || "" }));
     const prev = document.activeElement as HTMLElement | null;
-    const id = setTimeout(() => { if (!phone) (store.get("name") ? areaRef.current : nameRef.current)?.focus({ preventScroll: true }); else dlg.current?.focus({ preventScroll: true }); }, 320);
+    // No autofocus on a field (it shows a ring with no tap); focus the dialog itself for screen readers and Tab.
+    const id = setTimeout(() => dlg.current?.focus({ preventScroll: true }), 320);
     const k = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+      if (e.key === "Escape") { e.preventDefault(); closeRef.current(); }
       if (e.key === "Tab" && dlg.current) { const fs = Array.from(dlg.current.querySelectorAll<HTMLElement>("button:not(:disabled), a[href], input, textarea")).filter((n) => n.offsetParent !== null); if (!fs.length) return; if (e.shiftKey && document.activeElement === fs[0]) { e.preventDefault(); fs[fs.length - 1].focus(); } else if (!e.shiftKey && document.activeElement === fs[fs.length - 1]) { e.preventDefault(); fs[0].focus(); } }
     };
     document.addEventListener("keydown", k);
@@ -372,9 +423,9 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
   const daySlots = date ? slots(c, date, now) : slots(c, addDays(today, 1), now);
   const dateErr = day === "pick" && picked ? (picked < today ? t.past : isClosed(c, picked) ? t.closed(new Intl.DateTimeFormat(t.locale, { weekday: "long" }).format(picked)) : "") : "";
   const q = quote(c, s, date ? date.getDay() : undefined);
-  const timeLabel = (h: number) => new Intl.DateTimeFormat(lang === "en" ? "en-US" : t.locale, { hour: "numeric", hour12: true, minute: h % 1 ? "2-digit" : undefined }).format(new Date(2026, 0, 1, Math.floor(h), (h % 1) * 60));
+  const timeLabel = (h: number) => new Intl.DateTimeFormat(lang === "en" || lang === "hi" ? "en-US" : t.locale, lang === "ar" ? { hour: "2-digit", minute: "2-digit", hourCycle: "h23" } : { hour: "numeric", hour12: true, minute: h % 1 ? "2-digit" : undefined }).format(new Date(2026, 0, 1, Math.floor(h), (h % 1) * 60));
   const dayLabel = (d: Date) => new Intl.DateTimeFormat(t.locale, { weekday: "short", day: "numeric", month: "short" }).format(d);
-  const sep = lang === "en" ? ", " : "، ";
+  const sep = lang === "en" || lang === "hi" ? ", " : "، ";
   useEffect(() => { if (time != null && !daySlots.find((x) => x.h === time)?.ok) setTime(null); }, [day, dateValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const msg = t.msg({
@@ -403,21 +454,22 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
   const field = (k: keyof typeof f, label: string, extra: React.InputHTMLAttributes<HTMLInputElement> = {}, ref?: React.RefObject<HTMLInputElement | null>, err?: string) => (
     <label className="f"><span>{label}</span><input ref={ref} className="input" dir="auto" maxLength={LIMIT[k]} aria-invalid={bad[k] || undefined} value={f[k]} onChange={(e) => { setF((x) => ({ ...x, [k]: e.target.value })); setBad((b) => ({ ...b, [k]: false })); }} {...extra} />{err && <p className="err">{err}</p>}</label>
   );
-  const minDate = ymd(today);
-  return (
+    return (
     <div className="modal" id="modal">
-      <motion.div className="scrim" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.28 }} />
-      <motion.div className="dialog" ref={dlg} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="bkTitle"
-        initial={phone ? { y: "100%" } : { opacity: 0, scale: 0.35, x: origin.x, y: origin.y, borderRadius: 999 }}
+      {phone
+        ? <motion.div className="scrim" onClick={requestClose} style={{ opacity: scrimOpacity }} />
+        : <motion.div className="scrim" onClick={requestClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.28 }} />}
+      <motion.div className="dialog" ref={dlg} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="bkTitle" style={phone ? { y } : undefined}
+        initial={phone ? { y: H } : { opacity: 0, scale: 0.35, x: origin.x, y: origin.y, borderRadius: 999 }}
         animate={phone ? { y: 0 } : { opacity: 1, scale: 1, x: 0, y: 0, borderRadius: 28 }}
-        exit={phone ? { y: "100%" } : { opacity: 0, scale: 0.35, x: origin.x, y: origin.y, borderRadius: 999 }}
+        exit={phone ? { y: H, transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } } : { opacity: 0, scale: 0.35, x: origin.x, y: origin.y, borderRadius: 999 }}
         transition={{ duration: phone ? 0.46 : 0.48, ease: EASE }}>
         <div className="dlg-inner" id="dlgInner">
           <div className="dlg-handle" />
           <AnimatePresence mode="wait" initial={false}>
             {!done ? (
               <motion.div key="form" id="viewForm" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: phone ? 0 : 0.16 } }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-                <div className="dlg-head"><h3 id="bkTitle">{t.book}</h3><button type="button" className="icon-btn" aria-label={t.close} onClick={onClose}><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></button></div>
+                <div className="dlg-head"><h3 id="bkTitle">{t.book}</h3><button type="button" className="icon-btn" aria-label={t.close} onClick={requestClose}><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></button></div>
                 <p className="dlg-lead">{t.bkLead(brand)}</p>
                 <div className="dlg-sum"><span>{`${t.typeLong[s.type]}${sep}${homeLine}`}<br /><b>{t.crew(q.cleaners, q.hours)}</b></span><strong>{range(q.total, q.high)}</strong></div>
                 {field("name", t.name, { autoComplete: "name", enterKeyHint: "next", id: "fName", onKeyDown: (e) => { if (e.key === "Enter") { e.preventDefault(); areaRef.current?.focus(); } } }, nameRef, t.errName)}
@@ -431,7 +483,9 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
                       return <button key={d} type="button" className="chip" data-day={d} disabled={off} aria-pressed={day === d} onClick={() => { setDay((v) => (v === d ? null : d)); setBad((b) => ({ ...b, day: false })); }}>{t[d]}</button>;
                     })}
                   </div>
-                  <Reveal open={day === "pick"}><input className="input date-in" id="fDate" type="date" min={minDate} aria-label={t.pick} aria-invalid={!!dateErr || undefined} value={dateValue} onChange={(e) => setDateValue(e.target.value)} /></Reveal>
+                  <Reveal open={day === "pick"}><div className="chips days" id="fDays" role="group" aria-label={t.pick}>
+                    {Array.from({ length: 14 }, (_, i) => addDays(today, i + 2)).map((d) => { const v = ymd(d), off = isClosed(c, d); return <button key={v} type="button" className="chip" data-date={v} tabIndex={day === "pick" ? 0 : -1} disabled={off} aria-pressed={dateValue === v} onClick={() => { setDateValue(v); setBad((b) => ({ ...b, day: false })); }}>{dayLabel(d)}</button>; })}
+                  </div></Reveal>
                   {(dateErr || (bad.day && !date)) && <p className="err show">{dateErr || t.errDay}</p>}
                 </div>
                 <div className="f">
@@ -459,7 +513,7 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
                   <a className="btn ghost wide" href={waUrl(c, msg)} target="_blank" rel="noopener"><span>{t.again}</span></a>
                   {!phone && <a className="btn ghost wide" href={waWebUrl(c, msg)} target="_blank" rel="noopener"><span>{t.web}</span></a>}
                   <button type="button" className="btn ghost wide" id="copyBtn" onClick={copy}><span>{copied ? t.copied : t.copy}</span></button>
-                  <button type="button" className="btn primary wide" onClick={onClose}><span>{t.done}</span></button>
+                  <button type="button" className="btn primary wide" onClick={requestClose}><span>{t.done}</span></button>
                 </div>
               </motion.div>
             )}

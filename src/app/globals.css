@@ -38,6 +38,8 @@ body {
   font: 400 15px/1.55 var(--sans);
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
 }
+html[lang="hi"] { --sans: 'Noto Sans Devanagari', 'Geist', system-ui, sans-serif; --serif: 'Noto Sans Devanagari', serif; }
+html[lang="hi"] body { line-height: 1.6; }
 html[lang="ur"] body { line-height: 2.05; font-size: 14px; }
 html[lang="ar"] body { line-height: 1.75; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
@@ -57,6 +59,7 @@ html[lang="ur"] .brand-tag { line-height: 1.9; }
 .lang { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
 .lang button { border: 0; background: transparent; color: var(--faint); font: 500 12.5px/1 'Geist', system-ui, sans-serif; padding: 7px 11px; border-radius: 999px; transition: color 200ms, background 240ms var(--ease); }
 .lang button[lang="ar"] { font-family: 'Noto Naskh Arabic', serif; font-size: 13px; padding-block: 5px 6px; }
+.lang button[lang="hi"] { font-family: 'Noto Sans Devanagari', sans-serif; font-size: 13px; }
 .lang button[lang="ur"] { font-family: 'Noto Nastaliq Urdu', serif; font-size: 12px; padding-block: 3px 6px; line-height: 1.5; }
 .lang button:hover { color: var(--text); }
 .lang button[aria-pressed="true"] { background: var(--surface-3); color: var(--text); }
@@ -225,7 +228,7 @@ html[lang="ur"] .dlg-head h3 { font-size: 21px; line-height: 1.9; }
 .icon-btn:active { transform: scale(.9); }
 .dlg-lead { margin: 6px 0 18px; color: var(--muted); font-size: 14px; }
 .dlg-sum { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; border-radius: 18px; background: var(--surface); margin-bottom: 18px; }
-.dlg-sum span { color: var(--muted); font-size: 13.5px; line-height: 1.45; }
+.dlg-sum span { color: var(--muted); font-size: 14px; line-height: 1.45; }
 .dlg-sum strong { font: 400 28px/1 var(--num); white-space: nowrap; }
 .f { display: grid; gap: 8px; margin-bottom: 16px; }
 .f > span { font-weight: 600; font-size: 14px; }
@@ -240,7 +243,7 @@ html[lang="ur"] .dlg-head h3 { font-size: 21px; line-height: 1.9; }
 .chip:hover { color: var(--text); }
 .chip:active { transform: scale(.95); }
 .chip[aria-pressed="true"] { background: var(--surface-3); color: var(--text); border-color: #555; }
-html[lang="ur"] .chip { padding-bottom: 6px; font-size: 13px; }
+html[lang="ur"] .chip { padding-bottom: 6px; font-size: 14px; }
 .date-in { margin-top: 10px; }
 .dlg-foot { margin-top: 8px; }
 .done { text-align: center; padding: 18px 6px 4px; }
@@ -349,7 +352,7 @@ html[lang="ur"] .unit button{padding:0 9px 4px;font-size:11.5px}
 .kind[aria-checked="true"]{color:var(--ink);border-color:transparent;font-weight:600}
 .kind-bg{position:absolute;inset:-1px;border-radius:999px;background:var(--button);z-index:-1}
 .kind-lbl{position:relative}
-html[lang="ur"] .kind{padding-bottom:6px;font-size:13.5px}
+html[lang="ur"] .kind{padding-bottom:6px;font-size:14px}
 .maid-field{padding-top:26px}
 .extra.maid{border-color:var(--line);padding:14px 16px;border-radius:18px}
 .extra .name small{display:block;color:var(--faint);font-size:12.5px;font-weight:400;margin-top:2px;line-height:1.4}
@@ -360,7 +363,7 @@ html[lang="ur"] .extra .name small{line-height:1.9}
 @media (max-width: 820px){
   .kinds{flex-wrap:nowrap;overflow-x:auto;margin:0 -18px;padding:2px 18px 4px;scrollbar-width:none}
   .kinds::-webkit-scrollbar{display:none}
-  .kind{flex:none;height:42px;padding:0 16px}
+  .kind{flex:none;height:44px;padding:0 16px}
 }
 /* Booking realism */
 .sub-field{padding-top:16px}
@@ -384,3 +387,30 @@ textarea.input{height:auto;min-height:64px;padding:12px 18px;border-radius:20px;
 .ref-line{margin:-12px 0 18px!important;color:var(--muted)}.ref-line b{color:var(--text);letter-spacing:.06em}
 .input{text-overflow:ellipsis}
 .btn.primary svg{flex:none}
+/* Build-knowledge audit fixes */
+a, label, input, textarea, [role="radio"], [role="button"] { -webkit-tap-highlight-color: transparent; }
+:focus:not(:focus-visible) { outline: none; }
+.dialog:focus, .dialog:focus-visible { outline: none; }
+.dlg-handle { touch-action: none; height: 5px; margin: 0 auto 12px; padding: 0; box-sizing: content-box; border-top: 10px solid transparent; border-bottom: 6px solid transparent; background-clip: padding-box; }
+.dlg-head { touch-action: none; }
+.price, .dlg-sum strong, .lines li span:last-child, .chips .chip, .sum-short b { unicode-bidi: isolate; }
+.chips.days { flex-wrap: nowrap; overflow-x: auto; margin: 10px -20px 0; padding: 2px 20px 4px; scrollbar-width: none; }
+.chips.days::-webkit-scrollbar { display: none; }
+.chips.days .chip { flex: none; }
+/* 44px taps: small visual controls get a larger hit area */
+.unit button, .lang button, .link-btn, .icon-btn { position: relative; }
+.unit button::after, .lang button::after, .link-btn::after, .icon-btn::after { content: ""; position: absolute; inset: -8px -2px; }
+.icon-btn::after { inset: -4px; }
+.step-btn { width: 44px; height: 44px; }
+.chip, .chips.times .chip { height: 44px; min-height: 44px; }
+@media (max-width: 820px) {
+  .lang button { min-height: 36px; }
+  .hint, .note, .type-rate, .sum-short, .extra .amt, .stage-head p, .bar-price small, .bar-crew, .err, .extra .name small, .per, .num-box span, .row-toggle .meta { font-size: 14px !important; }
+  html[lang="ur"] .hint, html[lang="ur"] .note, html[lang="ur"] .stage-head p, html[lang="ur"] .bar-crew, html[lang="ur"] .extra .name small { font-size: 14px !important; }
+}
+/* No press transforms on touch for cards and rows (the thumb scrolls over them) */
+@media (hover: none) { .type:active, .extra:active, .row-toggle:active, .kind:active { transform: none; } }
+
+.unit button::after{inset:-10px -2px}
+input[type="range"]{height:44px}
+.unit button{min-width:44px}

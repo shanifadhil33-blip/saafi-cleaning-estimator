@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
-export type Lang = "en" | "ar" | "ur";
+export type Lang = "en" | "ar" | "ur" | "hi";
 /* UI strings, ported from Claude's demo and extended with home types. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const arFloors = (n: number) => (n === 1 ? 'طابق واحد' : n === 2 ? 'طابقان' : `${n} طوابق`);
@@ -149,6 +149,48 @@ export const STR: Record<Lang, any> = {
       `اندازاً قیمت: ${o.total}${o.weekly ? ' فی وزٹ' : ''}`,
     ].join('\n'),
   },
+  hi: {
+    dir: 'ltr', locale: 'hi-IN-u-nu-latn',
+    money: (n) => `AED ${n}`,
+    demo: 'डेमो',
+    title: 'अपने घर की सफाई का रेट जानें',
+    lead: 'अपने घर की डिटेल डालें, रेट साथ साथ बदलता रहेगा। ठीक लगे तो WhatsApp पर बुक करें।',
+    size: 'घर का साइज़', sizeRange: '500 से 6,000 sq ft', sqft: 'sq ft',
+    floors: 'फ्लोर', bedrooms: 'बेडरूम', bathrooms: 'बाथरूम', fewer: 'कम', more: 'ज़्यादा',
+    type: 'सफाई का टाइप',
+    types: {
+      standard: ['नॉर्मल', 'धूल, फर्श, किचन की सतह और बाथरूम। रेगुलर सफाई के लिए ठीक।'],
+      deep: ['डीप', 'नॉर्मल सफाई के साथ अलमारी के अंदर, किनारे, टाइल की लाइनें और मुश्किल जगहें भी।'],
+      move: ['घर शिफ्टिंग', 'खाली घर की ऊपर से नीचे तक पूरी सफाई, हैंडओवर के लिए तैयार।'],
+    },
+    typeLong: { standard: 'नॉर्मल सफाई', deep: 'डीप क्लीनिंग', move: 'घर शिफ्टिंग की सफाई' },
+    perSqft: (r) => `AED ${r} प्रति sq ft`,
+    extras: 'एक्स्ट्रा सर्विस', extrasNone: 'ज़रूरी नहीं', extrasCount: (n) => `${n} जोड़े`,
+    ex: { oven: 'ओवन के अंदर', fridge: 'फ्रिज के अंदर', windows: 'खिड़कियाँ', balcony: 'बालकनी', laundry: 'कपड़े धुलाई' },
+    often: 'कितनी बार', once: 'एक बार', weekly: 'हर हफ्ते', save: (p) => `${p}% बचत`,
+    weeklyOff: 'घर शिफ्टिंग की सफाई हर हफ्ते नहीं मिलती।',
+    total: 'अंदाज़न रेट', perVisit: 'हर विज़िट', oneTime: 'एक बार',
+    short: { area: 'साइज़', rooms: 'कमरे', extras: 'एक्स्ट्रा' },
+    details: 'डिटेल देखें', hide: 'डिटेल छुपाएँ',
+    lines: {
+      area: (sq, r) => `साइज़, ${sq} sq ft, ${r} के हिसाब से`,
+      beds: (n) => `बेडरूम, ${n}`, baths: (n) => `बाथरूम, ${n}`, floorsX: (n) => `एक्स्ट्रा फ्लोर, ${n}`,
+      weekly: (p) => `हर हफ्ते की छूट, ${p}%`, off: (m) => `${m} कम`, minimum: 'कम से कम विज़िट रेट', total: 'कुल',
+    },
+    note: 'सैंपल रेट। फाइनल रेट WhatsApp पर पक्का होगा।',
+    book: 'WhatsApp पर बुक करें',
+    bkLead: (b) => `आपकी डिटेल सीधे WhatsApp पर ${b} को जाएगी।`,
+    name: 'आपका नाम', area: 'एरिया', date: 'पसंद की तारीख',
+    tomorrow: 'कल', weekend: 'इस वीकेंड', pick: 'तारीख चुनें', flexible: 'कोई भी दिन',
+    send: 'WhatsApp पर भेजें', close: 'बंद करें', errName: 'अपना नाम लिखें', errArea: 'अपना एरिया लिखें',
+    opening: 'WhatsApp खुल रहा है', doneLead: () => 'आपका मैसेज तैयार है। WhatsApp में भेजें दबाएँ।',
+    again: 'WhatsApp फिर से खोलें', done: 'ठीक है', handle: 'पैनल का साइज़ बदलें', drag: 'घुमाने के लिए खींचें',
+    home: (n) => (n === 1 ? 'एक फ्लोर का घर' : `${n} फ्लोर का घर`),
+    sub: (sq, b, ba, t) => `${sq} sq ft, ${b} बेडरूम, ${ba} बाथरूम, ${t}`,
+    homeLine: (sq, f, b, ba) => `${sq} sq ft, ${f} फ्लोर, ${b} बेडरूम, ${ba} बाथरूम`,
+    or: 'या', none: 'कोई नहीं',
+    msg: (o) => [`नमस्ते, मुझे घर की सफाई बुक करनी है।`, '', `नाम: ${o.name}`, `एरिया: ${o.area}`, `तारीख: ${o.date}`, `घर: ${o.home}`, `सफाई: ${o.type}, ${o.freq}`, `एक्स्ट्रा: ${o.extras}`, `अंदाज़न रेट: ${o.total}`].join('\n'),
+  },
 };
 /* Additions: brand optional copy, home types, GCC bedroom wording, units, maid's room, pool. */
 const BEDS_EN = (n: number) => (n === 0 ? "Studio" : `${n}BR`);
@@ -194,6 +236,19 @@ export const MORE: Record<Lang, any> = {
     sizeRange: (a: string, b: string, u: string) => `${a} سے ${b} ${u}`,
     ex2: { pool: "پول ایریا" },
     lines2: { maid: "میڈ روم" },
+  },
+  hi: {
+    bkLead: (b: string) => (b ? `आपकी डिटेल सीधे WhatsApp पर ${b} को जाएगी।` : "आपकी डिटेल सीधे WhatsApp पर सफाई टीम को जाएगी।"),
+    doneLead: (b: string) => `आपका मैसेज तैयार है। WhatsApp में भेजें दबाएँ${b ? `, ये ${b} तक पहुँच जाएगा` : ""}।`,
+    kind: "घर का टाइप",
+    kinds: { studio: "Studio", apartment: "Apartment", townhouse: "Townhouse", villa: "Villa", penthouse: "Penthouse" },
+    kindHome: { studio: "Studio अपार्टमेंट", apartment: "Apartment", townhouse: (f: number) => `${f} फ्लोर का Townhouse`, villa: (f: number) => `${f} फ्लोर का Villa`, penthouse: (f: number) => (f === 1 ? "Penthouse" : `${f} फ्लोर का Penthouse`) },
+    bedsLabel: BEDS_EN, bedsWord: "बेडरूम", studioFixed: "ओपन प्लान",
+    maid: "मेड रूम", maidHint: "अपने बाथरूम वाला छोटा कमरा, खाड़ी के घरों में आम",
+    sqm: "sq m", unitAria: "यूनिट",
+    sizeRange: (a: string, b: string, u: string) => `${a} से ${b} ${u}`,
+    ex2: { pool: "पूल एरिया" },
+    lines2: { maid: "मेड रूम" },
   },
 };
 
@@ -242,5 +297,19 @@ export const REAL: Record<Lang, any> = {
     copy: "تفصیل کاپی کریں", copied: "کاپی ہو گئی", web: "واٹس ایپ ویب استعمال کریں", ref: "حوالہ",
     matBringMsg: "براہ کرم ساتھ لائیں", matOwnMsg: "میرے پاس ہے",
     msg: (o: Msg) => `صفائی کی نئی بکنگ، حوالہ ${o.ref}\n\n` + lines([["نام", o.name], ["علاقہ", o.area], ["پتہ", o.address], ["تاریخ", o.date], ["شروع کا وقت", o.time], ["گھر", o.home], ["صفائی", `${o.type}، ${o.freq}`], ["ٹیم", o.crew], ["صفائی کا سامان", o.materials], ["فرنیچر", o.furnished], ["اضافی سروسز", o.extras], ["اندازاً قیمت", o.estimate], ["نوٹ", o.notes]]) + `\n\nتصدیق کے لیے جواب دیں: تصدیق شدہ ${o.ref}`,
+  },
+  hi: {
+    materials: "सफाई का सामान", matBring: "आप ले आएँ", matOwn: "मेरे पास है", matNote: (m: string) => `सामान के लिए ${m} हर क्लीनर घंटा`,
+    furnishedQ: "क्या घर में फर्नीचर है?", furnished: "फर्नीचर वाला", unfurnished: "खाली",
+    crew: (c: number, h: number) => `${c} क्लीनर, लगभग ${h} घंटे`,
+    range: (a: string, b: string) => `${a} से ${b}`, from: "से शुरू",
+    approx: "अंदाज़न रेट। फाइनल रेट WhatsApp पर पक्का होगा।",
+    labour: (c: number, h: number, r: string) => `${c} × ${h} घंटे, ${r} प्रति घंटा`, matLine: "सफाई का सामान", surcharge: (d: string) => `${d} का रेट`,
+    today: "आज", start: "शुरू का टाइम", errDay: "दिन चुनें", errTime: "शुरू का टाइम चुनें",
+    closed: (d: string) => `हम ${d} को काम नहीं करते। कोई और दिन चुनें।`, past: "आज या बाद की तारीख चुनें।",
+    addr: "पते की डिटेल", optional: "ज़रूरी नहीं", building: "बिल्डिंग या कम्युनिटी", unit: "फ्लैट या Villa नंबर", notes: "टीम के लिए नोट", notesPh: "पार्किंग, एंट्री, गेट कोड",
+    copy: "डिटेल कॉपी करें", copied: "कॉपी हो गया", web: "WhatsApp Web इस्तेमाल करें", ref: "रेफ",
+    matBringMsg: "प्लीज़ साथ लाएँ", matOwnMsg: "मेरे पास है",
+    msg: (o: Msg) => `नई सफाई बुकिंग, रेफ ${o.ref}\n\n` + lines([["नाम", o.name], ["एरिया", o.area], ["पता", o.address], ["तारीख", o.date], ["शुरू का टाइम", o.time], ["घर", o.home], ["सफाई", `${o.type}, ${o.freq}`], ["टीम", o.crew], ["सफाई का सामान", o.materials], ["फर्नीचर", o.furnished], ["एक्स्ट्रा", o.extras], ["अंदाज़न रेट", o.estimate], ["नोट", o.notes]]) + `\n\nपक्का करने के लिए जवाब दें: Confirmed ${o.ref}`,
   },
 };
