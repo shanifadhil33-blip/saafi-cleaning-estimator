@@ -36,6 +36,7 @@ for (const [w, h] of [[360, 780], [390, 844], [1440, 900]]) {
   await p.getByLabel("Full name").fill("Omar Khalid"); await p.getByLabel("Phone").fill("050 123 4567");
   await p.getByLabel("Address").fill("Villa 12, Al Barsha 2, Dubai"); await p.getByLabel("Notes for the crew").fill("Gate code 4411");
   await p.screenshot({ path: `${OUT}/${w}-modal.png` });
+  ok(await p.evaluate(() => { const m = document.querySelector(".modal").getBoundingClientRect(); return [...document.querySelectorAll(".modal input,.modal textarea")].every(e => e.getBoundingClientRect().right <= m.right - 8); }), `${w} modal fields fit`);
   const [pop] = await Promise.all([ctx.waitForEvent("page", { timeout: 8000 }).catch(() => null), p.getByRole("button", { name: "Send booking on WhatsApp" }).click()]);
   const url = pop ? pop.url() : ""; const txt = url ? (new URL(url).searchParams.get("text") || "") : "";
   ok(url.includes("wa.me") || url.includes("whatsapp"), `${w} WhatsApp opens (${url.slice(0, 40)})`);

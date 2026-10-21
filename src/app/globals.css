@@ -67,7 +67,7 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;bac
 .in{display:block;margin-bottom:12px}.in span{display:block;font-size:14px;color:var(--muted);margin-bottom:6px}
 .in input,.in textarea{width:100%;background:#0F1012;border:1px solid var(--line);border-radius:12px;padding:13px 14px;color:var(--text);font:16px var(--f-body),sans-serif;color-scheme:dark}
 .in.bad input{border-color:#D98B7A}.in em{display:block;color:#E3A595;font-style:normal;font-size:14px;margin-top:4px}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.in input{min-width:0;max-width:100%}
 .wa{background:#2BB673;color:#08130D;margin-top:6px}
 @keyframes fade{from{opacity:0}}@keyframes up{from{transform:translateY(40px);opacity:0}}
 @media (min-width:640px){.overlay{align-items:center}.modal{border-radius:22px}}
