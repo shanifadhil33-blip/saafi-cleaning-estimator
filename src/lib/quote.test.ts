@@ -1,7 +1,8 @@
+import { readdirSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { quote, initial, switchKind, autoSize, fitKind, waUrl, waWebUrl, slots, refCode } from "./quote";
 import { computeLayout } from "./houseLayout";
-import { defaultCompany as c } from "./companies";
+import { companies, defaultCompany as c } from "./companies";
 describe("quote", () => {
   it("starts as a 2BR apartment with materials", () => { const s = initial(c); expect(s).toMatchObject({ kind: "apartment", beds: 2, floors: 1, materials: true }); expect(s.sqft).toBe(1250); });
   it("prices per cleaner hour with materials", () => { const s = initial(c); const q = quote(c, s); expect(q.labour).toBe(q.cleaners * q.hours * 40); expect(q.materials).toBe(q.cleaners * q.hours * 10); expect(quote(c, { ...s, materials: false }).total).toBeLessThan(q.total); });
@@ -16,4 +17,11 @@ describe("quote", () => {
   it("slots: past times today are off, closed days have none", () => { const now = new Date(2026, 9, 22, 11, 0); const sl = slots(c, now, now); expect(sl.map((x) => x.h)).toEqual([8, 10, 12, 14, 16, 18]); expect(sl.filter((x) => x.ok).map((x) => x.h)).toEqual([14, 16, 18]); const cc = { ...c, closedDays: [5] }; expect(slots(cc, new Date(2026, 9, 23), now).every((x) => !x.ok)).toBe(true); });
   it("ref code and links", () => { expect(refCode(c, 0.5)).toMatch(/^[A-Z2-9]{5}$/); expect(waUrl(c, "Hi")).toBe("https://wa.me/971500000000?text=Hi"); expect(waWebUrl(c, "Hi")).toContain("web.whatsapp.com/send?phone=971500000000"); });
   it("layout builds for every type", () => { for (const k of ["studio", "apartment", "townhouse", "villa", "penthouse"] as const) { const s = switchKind(c, initial(c), k); expect(computeLayout({ sqft: s.sqft, floors: s.floors, bedrooms: s.beds, bathrooms: s.baths, kind: k, maid: true, pool: true }).items.length).toBeGreaterThan(20); } });
+  it("loads every company json, including the fictional saafi sample", () => {
+    const slugs = readdirSync("src/config/companies").filter((name) => name.endsWith(".json")).map((name) => name.slice(0, -".json".length)).sort();
+    expect(Object.keys(companies).sort()).toEqual(slugs);
+    expect(c.slug).toBe("saafi");
+    expect(c.whatsapp).toBe("971500000000");
+    expect(c.brand.en).toBe("");
+  });
 });
