@@ -159,7 +159,6 @@ function Roof({ W, D, y, show, ghost }: { W: number; D: number; y: number; show:
   return <group ref={ref}><mesh geometry={geo} castShadow><meshStandardMaterial ref={rm} color={G.roof} roughness={0.9} flatShading transparent side={THREE.DoubleSide} /></mesh></group>;
 }
 
-const DIR = new THREE.Vector3(2.2, 2.4, 9.2).normalize();
 /** Keeps the whole scene (roof to ground ellipse) inside the canvas with margin, for any aspect. */
 function CameraFit({ w, h }: { w: number; h: number }) {
   const { camera, size, controls } = useThree();

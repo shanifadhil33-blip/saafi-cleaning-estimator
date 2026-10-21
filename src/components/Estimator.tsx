@@ -44,6 +44,15 @@ export default function Estimator({ company: c }: { company: Company }) {
   const [openFloors, setOpenFloors] = useState(true);
   const [roof, setRoof] = useState(true);
   const [booking, setBooking] = useState(false);
+  // Phone bottom sheet: peek, half, full. Positions are offsets from the full position.
+  const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
+  const [drag, setDrag] = useState<number | null>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const g = useRef({ y0: 0, base: 0, t: 0, last: 0, v: 0 });
+  const offsets = () => { const h = sheetRef.current?.offsetHeight ?? 600, vh = window.innerHeight; return { full: 0, half: Math.max(0, h - vh * 0.5), peek: Math.max(0, h - 150) }; };
+  const onGrabDown = (e: React.PointerEvent) => { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); const o = offsets(); g.current = { y0: e.clientY, base: o[sheet], t: performance.now(), last: e.clientY, v: 0 }; setDrag(o[sheet]); };
+  const onGrabMove = (e: React.PointerEvent) => { if (drag == null) return; const o = offsets(), now = performance.now(); g.current.v = (e.clientY - g.current.last) / Math.max(1, now - g.current.t); g.current.t = now; g.current.last = e.clientY; setDrag(Math.min(o.peek + 40, Math.max(-20, g.current.base + e.clientY - g.current.y0))); };
+  const onGrabUp = () => { if (drag == null) return; const o = offsets(), y = drag + Math.max(-1.5, Math.min(1.5, g.current.v)) * 120; const pick = (Object.entries(o) as [typeof sheet, number][]).sort((a, b) => Math.abs(a[1] - y) - Math.abs(b[1] - y))[0][0]; if (Math.abs(drag - g.current.base) > 4) setSheet(pick); setDrag(null); };
   const est = useMemo(() => estimate(c, home), [c, home]);
   const total = useTicker(est.total);
   const [focus, setFocus] = useState<Focus | null>(null);
@@ -55,8 +64,9 @@ export default function Estimator({ company: c }: { company: Company }) {
 
   return (
     <>
+
+    <main className={`page sheet-${sheet}`}>
     <div className="banner"><span>This is a demo. Your version gets your logo, colours and prices.</span><a href={demoLink} target="_blank" rel="noopener">Get this for your company</a></div>
-    <main className="page">
       <header className="top">
         <div className="logo">{c.brand.name}</div>
       </header>
@@ -66,6 +76,26 @@ export default function Estimator({ company: c }: { company: Company }) {
       </section>
 
       <div className="layout">
+        <section className="model model-wrap" aria-label="3D model">
+          <div className="canvas card">
+            <div className="model-head"><h2 className="model-title">A {home.floors} floor home</h2>
+              <p className="home-label" aria-live="polite">{homeLabel(c, home).replace(/^A \d floor home: /, "")}</p></div>
+            <House home={home} openFloors={openFloors} roof={roof} focus={focus} />
+            <div className="toggles">
+              <button type="button" className="chip" aria-pressed={openFloors} onClick={() => setOpenFloors((v) => !v)}>Open floors</button>
+              <button type="button" className="chip" aria-pressed={roof} onClick={() => setRoof((v) => !v)}>Roof</button>
+            </div>
+            <ul className="legend">
+              {Object.keys(ROOM_COLORS).map((k) => <li key={k}><i style={{ background: ROOM_COLORS[k] }} />{ROOM_NAMES[k]}</li>)}
+            </ul>
+            <span className="hint"><span className="fine">Drag to turn · scroll to zoom</span><span className="coarse">Drag to turn</span></span>
+          </div>
+        </section>
+        <div className="sheet" ref={sheetRef} data-state={sheet} style={drag != null ? { transform: `translateY(${drag}px)`, transition: "none" } : undefined}>
+          <div className="grab" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp}>
+            <span className="handle" /><button type="button" className="grab-btn" aria-label={sheet === "full" ? "Show the model" : "Show all options"} onClick={() => setSheet(sheet === "full" ? "half" : "full")} />
+          </div>
+          <div className="sheet-body">
         <section className="controls card" aria-label="Your home">
           <div className="field">
             <div className="row">
@@ -108,23 +138,6 @@ export default function Estimator({ company: c }: { company: Company }) {
               <button type="button" aria-pressed={!!home.weekly} onClick={() => set({ weekly: true })}>Weekly <small>save {Math.round(c.weeklyDiscount * 100)}%</small></button>
             </div></div> : null}
         </section>
-
-        <section className="model model-wrap" aria-label="3D model">
-          <div className="canvas card">
-            <div className="model-head"><h2 className="model-title">A {home.floors} floor home</h2>
-              <p className="home-label" aria-live="polite">{homeLabel(c, home).replace(/^A \d floor home: /, "")}</p></div>
-            <House home={home} openFloors={openFloors} roof={roof} focus={focus} />
-            <div className="toggles">
-              <button type="button" className="chip" aria-pressed={openFloors} onClick={() => setOpenFloors((v) => !v)}>Open floors</button>
-              <button type="button" className="chip" aria-pressed={roof} onClick={() => setRoof((v) => !v)}>Roof</button>
-            </div>
-            <ul className="legend">
-              {Object.keys(ROOM_COLORS).map((k) => <li key={k}><i style={{ background: ROOM_COLORS[k] }} />{ROOM_NAMES[k]}</li>)}
-            </ul>
-            <span className="hint">Drag to turn · scroll to zoom</span>
-          </div>
-        </section>
-
         <section className="summary" aria-label="Your estimate">
           <div className="price-row"><div className="total" aria-live="polite"><small>{c.currency}</small>{fmt(total)}</div>
           <div className="crew">About {est.hours} hours with a crew of {est.crew}{est.saving ? ` · you save ${c.currency} ${fmt(est.saving)} a visit` : ""}</div></div>
@@ -138,6 +151,8 @@ export default function Estimator({ company: c }: { company: Company }) {
           <button type="button" className="cta" onClick={() => setBooking(true)}>Book this cleaning</button>
           <p className="note">A guide price. The crew confirms it on WhatsApp before the visit.</p>
         </section>
+          </div>
+        </div>
       </div>
 
       <div className="mobile-bar">
