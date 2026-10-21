@@ -2,6 +2,10 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
+import { createContext, useContext } from "react";
+import { LANGS, tr, phr, money, type Lang } from "@/lib/i18n";
+const LangCtx = createContext<Lang>("en");
+const useL = () => { const l = useContext(LangCtx); return { l, t: tr(l), P: phr(l) }; };
 
 const SPRING = { type: "spring", stiffness: 380, damping: 38, mass: 0.9 } as const;
 const EASE = { duration: 0.3, ease: [0.22, 1, 0.36, 1] } as const;
@@ -33,14 +37,15 @@ function useTicker(value: number) {
 }
 
 function Stepper({ label, value, step, min, max, onChange }: { label: string; value: number; step: number; min: number; max: number; onChange: (v: number) => void }) {
+  const { P } = useL();
   const prev = useRef(value); const dir = value >= prev.current ? 1 : -1; useEffect(() => { prev.current = value; }, [value]);
   return (
     <div>
       <span className="label">{label}</span>
       <div className="stepper" role="group" aria-label={label}>
-        <button type="button" aria-label={`Fewer ${label.toLowerCase()}`} disabled={value <= min} onClick={() => onChange(Math.max(min, value - step))}>−</button>
+        <button type="button" aria-label={P.fewer(label)} disabled={value <= min} onClick={() => onChange(Math.max(min, value - step))}>−</button>
         <output aria-live="polite" className="num"><AnimatePresence mode="popLayout" initial={false}><motion.span key={value} initial={{ y: 14 * dir, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -14 * dir, opacity: 0 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }} style={{ display: "inline-block" }}>{value}</motion.span></AnimatePresence></output>
-        <button type="button" aria-label={`More ${label.toLowerCase()}`} disabled={value >= max} onClick={() => onChange(Math.min(max, value + step))}>+</button>
+        <button type="button" aria-label={P.more(label)} disabled={value >= max} onClick={() => onChange(Math.min(max, value + step))}>+</button>
       </div>
     </div>
   );
@@ -52,6 +57,20 @@ export default function Estimator({ company: c }: { company: Company }) {
   const [home, setHome] = useState<Home>({ sqft: 2800, floors: 3, bedrooms: 1, bathrooms: 1.5, type: "standard" });
   const [openFloors, setOpenFloors] = useState(true);
   const [roof, setRoof] = useState(true);
+  const [lang, setLang] = useState<Lang>("en");
+  useEffect(() => { const q = new URLSearchParams(location.search).get("lang") ?? localStorage.getItem("lang"); if (q === "ur" || q === "ar" || q === "en") setLang(q); }, []);
+  useEffect(() => { document.documentElement.lang = lang; document.documentElement.dir = lang === "en" ? "ltr" : "rtl"; localStorage.setItem("lang", lang); }, [lang]);
+  const t = tr(lang), P = phr(lang), M = (n: number) => money(lang, c.currency, fmt(n));
+  const sub = [P.sqft(fmt(home.sqft)), P.bed(home.bedrooms), P.bath(home.bathrooms), ...(home.rooms ?? []).map((k) => t(c.rooms?.[k]?.label ?? k)), P.clean(t(c.types[home.type].label))].join(" · ");
+  const lineLabel = (k: string, a: number) => {
+    const tt = c.types[home.type];
+    if (k === "area") return `${t("Square footage")} · ${P.sqft(fmt(home.sqft))} × ${M(tt.perSqft)}`;
+    if (k === "bed") return `${t("Bedrooms")} · ${home.bedrooms} × ${M(c.perBedroom)}`;
+    if (k === "bath") return `${t("Bathrooms")} · ${home.bathrooms} × ${M(c.perBathroom)}`;
+    if (k === "floors") return `${t("Extra floors")} · ${home.floors - 1} × ${M(c.perExtraFloor)}`;
+    if (k === "weekly") return P.weeklyLine(Math.round((c.weeklyDiscount ?? 0) * 100));
+    const [g, id] = k.split("-"); const tbl = g === "rooms" ? c.rooms : c.extras; return t(tbl?.[id]?.label ?? k) + (a ? "" : "");
+  };
   const [booking, setBooking] = useState<{ x: number; y: number } | null>(null);
   const [showX, setShowX] = useState(false), [showD, setShowD] = useState(false);
   const openBook = (e: React.MouseEvent) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setBooking({ x: r.left + r.width / 2 - innerWidth / 2, y: r.top + r.height / 2 - innerHeight / 2 }); };
@@ -78,31 +97,32 @@ export default function Estimator({ company: c }: { company: Company }) {
   const areaText = `${fmt(home.sqft)} sq ft`;
 
   return (
-    <MotionConfig reducedMotion="user">
+    <LangCtx.Provider value={lang}><MotionConfig reducedMotion="user">
 
     <main className={`page sheet-${sheet}`}>
       <header className="top">
         <div className="logo">{c.brand.name}</div>
+        <div className="langs" role="group" aria-label={t("Language")}>{LANGS.map((x) => <button key={x.id} type="button" lang={x.id} aria-pressed={lang === x.id} onClick={() => setLang(x.id)}>{x.label}</button>)}</div>
       </header>
       <section className="hero">
-        <h1>Price your home cleaning</h1>
-        <p className="sub">Tell us about your home. The price and the model change as you go.</p>
+        <h1>{t("Price your home cleaning")}</h1>
+        <p className="sub">{t("Tell us about your home. The price and the model change as you go.")}</p>
       </section>
 
       <div className="layout">
         <section className="model model-wrap" aria-label="3D model">
           <div className="canvas card">
-            <div className="model-head"><h2 className="model-title">A {home.floors} floor home</h2>
-              <p className="home-label" aria-live="polite">{homeLabel(c, home).replace(/^A \d floor home: /, "")}</p></div>
+            <div className="model-head"><h2 className="model-title">{P.title(home.floors)}</h2>
+              <p className="home-label" aria-live="polite">{lang === "en" ? homeLabel(c, home).replace(/^A \d floor home: /, "") : sub}</p></div>
             <House home={home} openFloors={openFloors} roof={roof} focus={focus} />
             <div className="toggles">
-              <button type="button" className="chip" aria-pressed={openFloors} onClick={() => setOpenFloors((v) => !v)}>Open floors</button>
-              <button type="button" className="chip" aria-pressed={roof} onClick={() => setRoof((v) => !v)}>Roof</button>
+              <button type="button" className="chip" aria-pressed={openFloors} onClick={() => setOpenFloors((v) => !v)}>{t("Open floors")}</button>
+              <button type="button" className="chip" aria-pressed={roof} onClick={() => setRoof((v) => !v)}>{t("Roof")}</button>
             </div>
             <ul className="legend">
-              {Object.keys(ROOM_COLORS).map((k) => <li key={k}><i style={{ background: ROOM_COLORS[k] }} />{ROOM_NAMES[k]}</li>)}
+              {Object.keys(ROOM_COLORS).map((k) => <li key={k}><i style={{ background: ROOM_COLORS[k] }} />{t(ROOM_NAMES[k])}</li>)}
             </ul>
-            <span className="hint"><span className="fine">Drag to turn · scroll to zoom</span><span className="coarse">Drag to turn</span></span>
+            <span className="hint"><span className="fine">{t("Drag to turn · scroll to zoom")}</span><span className="coarse">{t("Drag to turn")}</span></span>
           </div>
         </section>
         <div className="sheet" ref={sheetRef} data-state={sheet} style={drag != null ? { transform: `translateY(${drag}px)`, transition: "none" } : undefined}>
@@ -113,77 +133,78 @@ export default function Estimator({ company: c }: { company: Company }) {
         <section className="controls card" aria-label="Your home" ref={formRef} data-end={formEnd} onScroll={checkEnd}>
           <div className="field">
             <div className="row">
-              <label className="label" htmlFor="area">Square footage</label>
-              <span className="range-note">{fmt(c.sqft.min)} to {fmt(c.sqft.max)} sq ft</span>
+              <label className="label" htmlFor="area">{t("Square footage")}</label>
+              <span className="range-note">{P.range(fmt(c.sqft.min), fmt(c.sqft.max))}</span>
             </div>
             <div className="slide-row"><input id="area" onPointerDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} type="range" min={c.sqft.min} max={c.sqft.max} step={c.sqft.step} value={home.sqft}
               onChange={(e) => set({ sqft: +e.target.value })} aria-valuetext={areaText}
               style={{ "--p": `${((home.sqft - c.sqft.min) / (c.sqft.max - c.sqft.min)) * 100}%` } as React.CSSProperties} />
             <span className="value-box big-value" aria-hidden="true">{fmt(home.sqft)}</span></div>
           </div>
-          <div className="field"><span className="label">Floors</span>
+          <div className="field"><span className="label">{t("Floors")}</span>
             <div className="seg floors" role="group" aria-label="Floors">
               {[1, 2, 3].map((f) => <button key={f} type="button" aria-pressed={home.floors === f} onClick={() => set({ floors: f as 1 | 2 | 3 })}>{home.floors === f && <motion.span layoutId="floorPill" className="pill-bg" transition={SPRING} />}<span className="pill-t">{f}</span></button>)}
             </div></div>
           <div className="field steps">
-            <Stepper label="Bedrooms" value={home.bedrooms} step={1} min={0} max={8} onChange={(v) => { set({ bedrooms: v }); bump("bedroom"); }} />
-            <Stepper label="Bathrooms" value={home.bathrooms} step={0.5} min={1} max={8} onChange={(v) => { set({ bathrooms: v }); bump("bathroom"); }} />
+            <Stepper label={t("Bedrooms")} value={home.bedrooms} step={1} min={0} max={8} onChange={(v) => { set({ bedrooms: v }); bump("bedroom"); }} />
+            <Stepper label={t("Bathrooms")} value={home.bathrooms} step={0.5} min={1} max={8} onChange={(v) => { set({ bathrooms: v }); bump("bathroom"); }} />
           </div>
           <fieldset className="types">
-            <legend className="label">Cleaning type</legend>
+            <legend className="label">{t("Cleaning type")}</legend>
             {(Object.keys(c.types) as CleanType[]).map((k) => (
               <label key={k} className={`type ${home.type === k ? "on" : ""}`}>
                 <input type="radio" name="type" value={k} checked={home.type === k} onChange={() => { set({ type: k }); bump("all"); }} />
                 <span className="dot" />
-                <span className="tname">{c.types[k].label}<Collapse open={home.type === k}><small>{c.types[k].blurb}</small></Collapse></span>
-                <span className="rate">{c.currency} {c.types[k].perSqft.toFixed(2)} / sq ft</span>
+                <span className="tname">{t(c.types[k].label)}<Collapse open={home.type === k}><small>{t(c.types[k].blurb)}</small></Collapse></span>
+                <span className="rate">{P.perSqft(money(lang, c.currency, c.types[k].perSqft.toFixed(2)))}</span>
               </label>
             ))}
           </fieldset>
           {(c.rooms || c.extras) && (() => { const n = (home.rooms?.length ?? 0) + (home.extras?.length ?? 0); return (
-            <div className="addx"><button type="button" className="sum-btn" aria-expanded={showX} onClick={() => setShowX((v) => !v)}><span>Add extras</span><span className="addx-n">{n ? `${n} added` : "Maid's room, majlis, sofa and more"}</span><span className="chev" aria-hidden="true" /></button>
+            <div className="addx"><button type="button" className="sum-btn" aria-expanded={showX} onClick={() => setShowX((v) => !v)}><span>{t("Add extras")}</span><span className="addx-n">{n ? P.added(n) : t("Maid's room, majlis, sofa and more")}</span><span className="chev" aria-hidden="true" /></button>
               <Collapse open={showX}><div className="pills">
-                {c.rooms && Object.entries(c.rooms).map(([k, a]) => <button key={k} type="button" className="pill" aria-pressed={!!home.rooms?.includes(k)} onClick={() => toggle("rooms", k)}>{a.label}<small>+{a.price}</small></button>)}
-                {c.extras && Object.entries(c.extras).map(([k, a]) => <button key={k} type="button" className="pill" aria-pressed={!!home.extras?.includes(k)} onClick={() => toggle("extras", k)}>{a.label}<small>+{a.price}</small></button>)}
+                {c.rooms && Object.entries(c.rooms).map(([k, a]) => <button key={k} type="button" className="pill" aria-pressed={!!home.rooms?.includes(k)} onClick={() => toggle("rooms", k)}>{t(a.label)}<small>+{a.price}</small></button>)}
+                {c.extras && Object.entries(c.extras).map(([k, a]) => <button key={k} type="button" className="pill" aria-pressed={!!home.extras?.includes(k)} onClick={() => toggle("extras", k)}>{t(a.label)}<small>+{a.price}</small></button>)}
               </div></Collapse>
             </div>); })()}
         </section>
         <section className="summary" aria-label="Your estimate">
-          <div className="price-row"><div className="total" aria-live="polite"><small>{c.currency}</small>{fmt(total)}</div>
-          <div className="crew">About {est.hours} hours with a crew of {est.crew}</div></div>
+          <div className="price-row"><div className="total" aria-live="polite"><small>{lang === "en" ? c.currency : money(lang, c.currency, "").trim()}</small>{fmt(total)}</div>
+          <div className="crew">{P.crew(est.hours, est.crew)}</div></div>
           {c.weeklyDiscount ? <button type="button" role="switch" aria-checked={!!home.weekly} className="wk" onClick={() => set({ weekly: !home.weekly })}>
-            <span className="sw" aria-hidden="true" />Weekly <small>{home.weekly ? `you save ${c.currency} ${fmt(est.saving)}` : `save ${Math.round(c.weeklyDiscount * 100)}%`}</small></button> : null}
+            <span className="sw" aria-hidden="true" />{t("Weekly")} <small>{home.weekly ? P.saved(M(est.saving)) : P.save(Math.round(c.weeklyDiscount * 100))}</small></button> : null}
           <ul className="lines">
             {est.lines.filter((l) => ["area", "bed", "bath"].includes(l.key)).map((l) => (
-              <li key={l.key}><span>{l.label}</span><span>{c.currency} {fmt(l.amount)}</span></li>
+              <li key={l.key}><span>{lang === "en" ? l.label : lineLabel(l.key, 1)}</span><span>{M(l.amount)}</span></li>
             ))}
           </ul>
-          <div className="more-lines"><button type="button" className="sum-btn" aria-expanded={showD} onClick={() => setShowD((v) => !v)}>See details<span className="chev" aria-hidden="true" /></button><Collapse open={showD}><ul className="lines">
+          <div className="more-lines"><button type="button" className="sum-btn" aria-expanded={showD} onClick={() => setShowD((v) => !v)}>{t("See details")}<span className="chev" aria-hidden="true" /></button><Collapse open={showD}><ul className="lines">
             {est.lines.filter((l) => !["area", "bed", "bath"].includes(l.key) && l.amount !== 0).map((l) => (
-              <li key={l.key}><span>{l.label}</span><span>{l.amount < 0 ? "minus " : ""}{c.currency} {fmt(Math.abs(l.amount))}</span></li>
+              <li key={l.key}><span>{lang === "en" ? l.label : lineLabel(l.key, 1)}</span><span>{l.amount < 0 ? (lang === "en" ? "minus " : "− ") : ""}{M(Math.abs(l.amount))}</span></li>
             ))}
-            {est.subtotal > est.lines.reduce((s, l) => s + l.amount, 0) && <li><span>Minimum visit</span><span>{c.currency} {fmt(est.subtotal)}</span></li>}
-            <li><span>VAT {Math.round(c.vatRate * 100)}%</span><span>{c.currency} {fmt(est.vat)}</span></li>
+            {est.subtotal > est.lines.reduce((s, l) => s + l.amount, 0) && <li><span>{t("Minimum visit")}</span><span>{M(est.subtotal)}</span></li>}
+            <li><span>{P.vat(Math.round(c.vatRate * 100))}</span><span>{M(est.vat)}</span></li>
           </ul></Collapse></div>
-          <button type="button" className="cta" onClick={openBook}>Book this cleaning</button>
+          <button type="button" className="cta" onClick={openBook}>{t("Book this cleaning")}</button>
         </section>
           </div>
         </div>
       </div>
 
       <div className="mobile-bar">
-        <div><div className="small muted">Estimated total</div><strong>{c.currency} {fmt(total)}</strong></div>
-        <button type="button" className="cta" onClick={openBook}>Book this cleaning</button>
+        <div><div className="small muted">{t("Estimated total")}</div><strong>{M(total)}</strong></div>
+        <button type="button" className="cta" onClick={openBook}>{t("Book this cleaning")}</button>
       </div>
 
-      <AnimatePresence>{booking && <BookingModal key="bk" origin={booking} c={c} home={home} est={est} onClose={() => setBooking(null)} />}</AnimatePresence>
+      <AnimatePresence>{booking && <BookingModal key="bk" origin={booking} c={c} home={home} est={est} sub={sub} onClose={() => setBooking(null)} />}</AnimatePresence>
     </main>
-    </MotionConfig>
+    </MotionConfig></LangCtx.Provider>
   );
 }
 
-function BookingModal({ c, home, est, onClose, origin }: { origin: { x: number; y: number }; c: Company; home: Home; est: ReturnType<typeof estimate>; onClose: () => void }) {
+function BookingModal({ c, home, est, onClose, origin, sub }: { sub: string; origin: { x: number; y: number }; c: Company; home: Home; est: ReturnType<typeof estimate>; onClose: () => void }) {
   const [f, setF] = useState({ name: "", phone: "", email: "", address: "", date: today(), time: "09:00", notes: "" });
+  const { l, t, P } = useL();
   const [tried, setTried] = useState(false), [sent, setSent] = useState(false);
   const phone = typeof window !== "undefined" && window.innerWidth < 640;
   const ref = useRef<HTMLDivElement>(null);
@@ -203,10 +224,10 @@ function BookingModal({ c, home, est, onClose, origin }: { origin: { x: number; 
   };
   const inp = (k: keyof typeof f, label: string, type = "text", extra: Record<string, string> = {}) => (
     <label className={`in ${tried && (missing.includes(k as never) || (k === "phone" && phoneBad)) ? "bad" : ""}`}>
-      <span>{label}</span>
+      <span>{t(label)}</span>
       <input type={type} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} {...extra} />
-      {tried && missing.includes(k as never) && <em>Please fill this in</em>}
-      {tried && k === "phone" && phoneBad && <em>Please check the number</em>}
+      {tried && missing.includes(k as never) && <em>{t("Please fill this in")}</em>}
+      {tried && k === "phone" && phoneBad && <em>{t("Please check the number")}</em>}
     </label>
   );
   return (
@@ -220,29 +241,29 @@ function BookingModal({ c, home, est, onClose, origin }: { origin: { x: number; 
         <AnimatePresence mode="wait" initial={false}>{sent ? (
           <motion.div key="ok" className="sent" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={EASE}>
             <span className="tick" aria-hidden="true" />
-            <h2 id="bk-title">Opening WhatsApp</h2>
-            <p className="muted">Your booking is written out. Press send in WhatsApp to confirm it with {c.brand.name}.</p>
-            <button type="button" className="cta" onClick={onClose}>Done</button>
+            <h2 id="bk-title">{t("Opening WhatsApp")}</h2>
+            <p className="muted">{P.sent(c.brand.name)}</p>
+            <button type="button" className="cta" onClick={onClose}>{t("Done")}</button>
           </motion.div>
         ) : (<motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-        <button type="button" className="close" aria-label="Close" onClick={onClose}>×</button>
-        <h2 id="bk-title">Book this cleaning</h2>
-        <p className="muted">Pick a day and tell us where to go.</p>
+        <button type="button" className="close" aria-label={t("Close")} onClick={onClose}>×</button>
+        <h2 id="bk-title">{t("Book this cleaning")}</h2>
+        <p className="muted">{t("Pick a day and tell us where to go.")}</p>
         <div className="sum">
-          <span>{homeLabel(c, home)}<br />About {est.hours} hours with a crew of {est.crew}</span>
-          <strong>{c.currency} {fmt(est.total)}</strong>
+          <span>{l === "en" ? homeLabel(c, home) : `${P.title(home.floors)}: ${sub}`}<br />{P.crew(est.hours, est.crew)}</span>
+          <strong>{money(l, c.currency, fmt(est.total))}</strong>
         </div>
         <form onSubmit={submit} noValidate>
           {inp("name", "Full name", "text", { autoComplete: "name" })}
           <div className="two">{inp("phone", "Phone", "tel", { autoComplete: "tel", inputMode: "tel" })}{inp("date", "Date", "date", { min: today() })}</div>
-          <details className="more"><summary>More details (optional)</summary>
+          <details className="more"><summary>{t("More details (optional)")}</summary>
           <div className="two">{inp("time", "Time", "time")}{inp("email", "Email", "email", { autoComplete: "email" })}</div>
-          {inp("address", "Address", "text", { autoComplete: "street-address", placeholder: "Villa or flat, building, area, emirate" })}
-          <label className="in"><span>Notes for the crew</span>
-            <textarea rows={3} value={f.notes} placeholder="Gate code, parking, rooms to skip" onChange={(e) => setF({ ...f, notes: e.target.value })} /></label>
+          {inp("address", "Address", "text", { autoComplete: "street-address", placeholder: t("Villa or flat, building, area, emirate") })}
+          <label className="in"><span>{t("Notes for the crew")}</span>
+            <textarea rows={3} value={f.notes} placeholder={t("Gate code, parking, rooms to skip")} onChange={(e) => setF({ ...f, notes: e.target.value })} /></label>
           </details>
-          <button type="submit" className="cta">Send booking on WhatsApp</button>
-          <p className="muted small">This opens WhatsApp with your booking written out. Nothing is sent until you press send there.</p>
+          <button type="submit" className="cta">{t("Send booking on WhatsApp")}</button>
+          <p className="muted small">{t("This opens WhatsApp with your booking written out. Nothing is sent until you press send there.")}</p>
         </form>
         </motion.div>)}</AnimatePresence>
       </motion.div>

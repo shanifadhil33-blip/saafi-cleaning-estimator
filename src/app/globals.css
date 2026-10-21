@@ -302,3 +302,32 @@ input[type=range]{touch-action:none}
  .controls.card{scrollbar-width:none}.controls.card::-webkit-scrollbar{display:none}
 }
 @media (max-width:1023px){.sheet{background:#141414;border-top:0}.sheet-body{scroll-behavior:smooth}}
+/* Languages */
+.top{display:flex;align-items:center;justify-content:space-between}
+.langs{display:flex;gap:2px;font-size:12.5px}
+.langs button{min-height:36px;padding:4px 10px;border-radius:999px;color:#7A7A7A;transition:color .2s,background .2s}
+.langs button[aria-pressed=true]{color:#FFF;background:#1C1C1C}
+.langs button[lang=ur]{font-family:var(--f-ur),serif;font-size:13px}.langs button[lang=ar]{font-family:var(--f-ar),serif;font-size:13.5px}
+@media (hover:hover) and (pointer:fine){.langs button:hover{color:#DADADA}}
+html[lang=ar] body,html[lang=ar] button,html[lang=ar] input,html[lang=ar] textarea{font-family:var(--f-ar),var(--f-body),sans-serif}
+html[lang=ar] h1,html[lang=ar] .model-title,html[lang=ar] .modal h2,html[lang=ar] .total{font-family:var(--f-ar),serif;font-weight:500}
+html[lang=ur] body,html[lang=ur] button,html[lang=ur] input,html[lang=ur] textarea{font-family:var(--f-ur),var(--f-ar),sans-serif;line-height:2}
+html[lang=ur] h1,html[lang=ur] .model-title,html[lang=ur] .modal h2{font-family:var(--f-ur),serif;font-weight:600;line-height:1.9}
+html[lang=ur] .total{font-family:var(--f-body),sans-serif;font-weight:300}
+html[lang=ur] h1{font-size:clamp(26px,4.2vw,46px)}html[lang=ar] h1{font-size:clamp(28px,4.4vw,52px)}
+html[lang=ur] .label,html[lang=ur] .tname{line-height:1.9}
+html[dir=rtl] .value-box,html[dir=rtl] .total,html[dir=rtl] .lines li span:last-child,html[dir=rtl] .mobile-bar strong,html[dir=rtl] .sum strong{direction:ltr;unicode-bidi:isolate}
+html[dir=rtl] input[type=range]{direction:rtl}
+html[dir=rtl] input[type=range]::-webkit-slider-runnable-track{background:linear-gradient(270deg,#8A8A8A var(--p),#2E2E2E var(--p))}
+html[dir=rtl] .sw::after{left:auto;right:3px}html[dir=rtl] .wk[aria-checked=true] .sw::after{transform:translateX(-14px)}
+html[dir=rtl] .close{right:auto;left:14px}
+html[dir=rtl] .addx .chev{margin-left:0;margin-right:8px}html[dir=rtl] .addx-n{margin-left:0;margin-right:auto}
+html[dir=rtl] .pill small{margin-left:0;margin-right:6px}
+html[dir=rtl] .legend{left:auto;right:16px}html[dir=rtl] .hint{right:auto;left:16px}
+html[dir=rtl] .toggles{right:auto;left:16px}html[dir=rtl] .model-head{left:auto;right:18px}
+html[dir=rtl] .legend i{margin-right:0;margin-left:6px}
+html[dir=rtl] input[type=tel],html[dir=rtl] input[type=email]{direction:ltr;text-align:right}
+@media (max-width:1023px){html[lang=ur] .hero h1{font-size:24px}html[lang=ar] .hero h1{font-size:28px}.top{padding-top:10px}}
+.top{position:relative;z-index:6}
+@media (max-width:1023px){.page.sheet-half .top,.page.sheet-full .top,.top{max-height:none;opacity:1;overflow:visible;padding:8px 0 2px}}
+.langs button{line-height:1.7;overflow:visible;white-space:nowrap}html[lang=ur] .model-head p,html[lang=ur] .model-head small{line-height:2.1}
