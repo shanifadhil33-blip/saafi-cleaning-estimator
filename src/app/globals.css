@@ -277,3 +277,28 @@ input[type=range]{touch-action:none}
  .more-lines .sum-btn{min-height:44px}
 }
 @media (prefers-reduced-motion:reduce){.top,.hero,.model,.controls,.summary{animation:none}}
+/* Calm pass (Nick's Mossline look) */
+.card{border:0;border-radius:18px}
+.controls.card{background:#161616;padding:26px 24px 8px}
+.canvas.card{background:#131313;border:0}
+.field{padding-bottom:34px}.types{padding-bottom:30px}
+.label{font-weight:500;color:#EDEDED}
+.range-note,.tname small,.crew,.lines li{color:#8C8C8C}
+.type{border:1px solid #222;border-radius:14px;margin-bottom:10px}
+.type.on{border:1px solid transparent;background:#262626}
+.stepper{border:1px solid #262626;background:transparent}
+.stepper button{border-radius:50%}
+.value-box{border:1px solid #2A2A2A;background:transparent}
+.seg.floors button{background:transparent;color:#8C8C8C}.seg.floors button[aria-pressed=true]{color:#FFF}
+.addx{border-top:0;padding-top:4px}
+.pill{border-color:#262626;background:transparent}
+.chip{background:#222;border-color:#222}
+.legend{opacity:.7}
+.sheet-body .controls{scroll-behavior:smooth}
+@media (min-width:1024px) and (min-height:700px){
+ .page{padding-top:8px}
+ .sheet-body .controls{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 18px,#000 calc(100% - 18px),transparent);mask-image:linear-gradient(to bottom,transparent 0,#000 18px,#000 calc(100% - 18px),transparent)}
+ .sheet-body .controls[data-end=false]{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 18px,#000 calc(100% - 72px),transparent);mask-image:linear-gradient(to bottom,transparent 0,#000 18px,#000 calc(100% - 72px),transparent)}
+ .controls.card{scrollbar-width:none}.controls.card::-webkit-scrollbar{display:none}
+}
+@media (max-width:1023px){.sheet{background:#141414;border-top:0}.sheet-body{scroll-behavior:smooth}}

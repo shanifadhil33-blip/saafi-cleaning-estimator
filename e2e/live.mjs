@@ -15,7 +15,7 @@ for (const [w, h] of [[360, 780], [390, 844], [1440, 900]]) {
   if (w >= 1024) { const r = await p.locator(".summary .cta").boundingBox(); ok(r && r.y + r.height <= h && await p.evaluate(() => scrollY) === 0, `${w} price and Book visible without page scroll`); }
   if (w >= 1024) { const f = p.locator(".controls"); ok(await f.getAttribute("data-end") === "false" && (await f.evaluate((e) => getComputedStyle(e).maskImage || getComputedStyle(e).webkitMaskImage)).includes("gradient"), `${w} form fade shows`);
     await p.screenshot({ path: `${OUT}/${w}-fade.png` }); await f.evaluate((e) => e.scrollTo(0, 99999)); await p.waitForTimeout(300);
-    ok(await f.getAttribute("data-end") === "true" && !(await f.evaluate((e) => getComputedStyle(e).maskImage || getComputedStyle(e).webkitMaskImage)).includes("gradient"), `${w} fade hides at the end`);
+    ok(await f.getAttribute("data-end") === "true" && !(await f.evaluate((e) => getComputedStyle(e).maskImage || getComputedStyle(e).webkitMaskImage)).includes("72px"), `${w} fade hides at the end`);
     await p.screenshot({ path: `${OUT}/${w}-fade-end.png` }); await f.evaluate((e) => e.scrollTo(0, 0)); }
   const t0 = await tot();
   await p.locator("#area").fill("4000"); await p.waitForTimeout(600); const t1 = await tot(); ok(+t1 > +t0, `${w} slider raises price ${t0}->${t1}`);
