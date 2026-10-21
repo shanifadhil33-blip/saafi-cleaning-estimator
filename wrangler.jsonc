@@ -1,0 +1,11 @@
+{
+  // Assets-only Worker. No script, so Cloudflare serves `out/` and never runs request-time code.
+  // Deploy: npm run build:static && npx wrangler deploy
+  "name": "saafi-estimator",
+  "compatibility_date": "2026-10-21",
+  "assets": {
+    "directory": "./out",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}
