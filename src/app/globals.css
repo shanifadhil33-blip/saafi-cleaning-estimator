@@ -331,3 +331,4 @@ html[dir=rtl] input[type=tel],html[dir=rtl] input[type=email]{direction:ltr;text
 .top{position:relative;z-index:6}
 @media (max-width:1023px){.page.sheet-half .top,.page.sheet-full .top,.top{max-height:none;opacity:1;overflow:visible;padding:8px 0 2px}}
 .langs button{line-height:1.7;overflow:visible;white-space:nowrap}html[lang=ur] .model-head p,html[lang=ur] .model-head small{line-height:2.1}
+@media (max-width:1023px){.page .top,.page.sheet-half .top,.page.sheet-full .top{height:40px;padding:2px 0}.page.sheet-half .model,.page.sheet-full .model{height:calc(50svh - 112px);margin-top:0}}

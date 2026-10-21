@@ -248,14 +248,14 @@ function BookingModal({ c, home, est, onClose, origin, sub }: { sub: string; ori
         ) : (<motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
         <button type="button" className="close" aria-label={t("Close")} onClick={onClose}>×</button>
         <h2 id="bk-title">{t("Book this cleaning")}</h2>
-        <p className="muted">{t("Pick a day and tell us where to go.")}</p>
+        <p className="muted">{t("Pick a day. We confirm the rest on WhatsApp.")}</p>
         <div className="sum">
           <span>{l === "en" ? homeLabel(c, home) : `${P.title(home.floors)}: ${sub}`}<br />{P.crew(est.hours, est.crew)}</span>
           <strong>{money(l, c.currency, fmt(est.total))}</strong>
         </div>
-        <form onSubmit={submit} noValidate>
-          {inp("name", "Full name", "text", { autoComplete: "name" })}
-          <div className="two">{inp("phone", "Phone", "tel", { autoComplete: "tel", inputMode: "tel" })}{inp("date", "Date", "date", { min: today() })}</div>
+        <form onSubmit={submit} noValidate onKeyDown={(e) => { const el = e.target as HTMLInputElement; if (e.key === "Enter" && el.autocomplete === "name") { e.preventDefault(); el.form?.querySelector<HTMLInputElement>("input[type=tel]")?.focus(); } }}>
+          {inp("name", "Full name", "text", { autoComplete: "name", enterKeyHint: "next" })}
+          <div className="two">{inp("phone", "Phone", "tel", { autoComplete: "tel", inputMode: "tel", enterKeyHint: "send" })}{inp("date", "Date", "date", { min: today() })}</div>
           <details className="more"><summary>{t("More details (optional)")}</summary>
           <div className="two">{inp("time", "Time", "time")}{inp("email", "Email", "email", { autoComplete: "email" })}</div>
           {inp("address", "Address", "text", { autoComplete: "street-address", placeholder: t("Villa or flat, building, area, emirate") })}

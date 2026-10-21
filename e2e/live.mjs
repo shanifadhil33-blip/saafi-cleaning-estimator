@@ -37,7 +37,7 @@ for (const [w, h] of [[360, 780], [390, 844], [1440, 900]]) {
   await p.screenshot({ path: `${OUT}/${w}-full.png`, fullPage: true });
   const book = w < 1024 ? p.locator(".mobile-bar .cta") : p.locator(".summary .cta");
   await book.click(); await p.waitForSelector("[role=dialog]");
-  ok((await p.locator("[role=dialog]").innerText()).includes("Pick a day and tell us where to go."), `${w} modal opens`);
+  ok((await p.locator("[role=dialog]").innerText()).includes("Pick a day. We confirm the rest on WhatsApp."), `${w} modal opens`);
   await p.getByRole("button", { name: "Send booking on WhatsApp" }).click();
   ok(await p.locator(".in em").count() >= 2, `${w} empty submit shows errors`);
   await p.getByLabel("Full name").fill("Omar Khalid"); await p.getByLabel("Phone").fill("050 123 4567");
