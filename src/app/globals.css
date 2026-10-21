@@ -211,3 +211,6 @@ input[type=range]{touch-action:none}
  .model{position:static;grid-row:1;height:100%}.model .canvas{height:100%}
  .hero{padding:8px 0 24px}
 }
+@media (min-width:1024px) and (min-height:700px){
+ .sheet-body .controls[data-end=false]{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 64px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 64px),transparent)}
+}

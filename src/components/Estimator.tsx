@@ -47,6 +47,10 @@ export default function Estimator({ company: c }: { company: Company }) {
   // Phone bottom sheet: peek, half, full. Positions are offsets from the full position.
   const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
   const [drag, setDrag] = useState<number | null>(null);
+  const formRef = useRef<HTMLElement>(null);
+  const [formEnd, setFormEnd] = useState(true);
+  const checkEnd = () => { const e = formRef.current; if (e) setFormEnd(e.scrollHeight - e.scrollTop - e.clientHeight < 4); };
+  useEffect(() => { checkEnd(); window.addEventListener("resize", checkEnd); return () => window.removeEventListener("resize", checkEnd); }, []);
   const sheetRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (sheet === "peek") bodyRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }, [sheet]);
   const g = useRef({ y0: 0, base: 0, t: 0, last: 0, v: 0 });
@@ -97,7 +101,7 @@ export default function Estimator({ company: c }: { company: Company }) {
             <span className="handle" /><button type="button" className="grab-btn" aria-label={sheet === "full" ? "Show the model" : "Show all options"} onClick={() => setSheet(sheet === "full" ? "half" : "full")} />
           </div>
           <div className="sheet-body" ref={bodyRef}>
-        <section className="controls card" aria-label="Your home">
+        <section className="controls card" aria-label="Your home" ref={formRef} data-end={formEnd} onScroll={checkEnd}>
           <div className="field">
             <div className="row">
               <label className="label" htmlFor="area">Square footage</label>
