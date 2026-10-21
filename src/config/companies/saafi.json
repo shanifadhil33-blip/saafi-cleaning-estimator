@@ -1,14 +1,37 @@
 {
   "slug": "saafi",
-  "brand": { "name": "Saafi", "tagline": "Home cleaning across the UAE", "logoText": "S", "accent": "#C9A46A", "bg": "#0E0F11", "surface": "#17191C" },
+  "brand": {
+    "name": "Saafi",
+    "tagline": "Home cleaning across the UAE"
+  },
   "whatsapp": "971500000000",
   "currency": "AED",
   "vatRate": 0.05,
-  "sqft": { "min": 500, "max": 6000, "step": 50, "default": 1800 },
+  "sqft": {
+    "min": 500,
+    "max": 6000,
+    "step": 50,
+    "default": 1800
+  },
   "types": {
-    "standard": { "label": "Standard", "perSqft": 0.12, "hourFactor": 1.0, "blurb": "Dusting, floors, kitchen and bathrooms" },
-    "deep": { "label": "Deep", "perSqft": 0.3, "hourFactor": 2.0, "blurb": "Inside cupboards, grout, behind appliances" },
-    "moveout": { "label": "Move out", "perSqft": 0.35, "hourFactor": 2.2, "blurb": "Empty home, every surface, ready to hand over" }
+    "standard": {
+      "label": "Standard",
+      "perSqft": 0.12,
+      "hourFactor": 1.0,
+      "blurb": "Dusting, floors, kitchen and bathrooms"
+    },
+    "deep": {
+      "label": "Deep",
+      "perSqft": 0.3,
+      "hourFactor": 2.0,
+      "blurb": "Inside cupboards, grout, behind appliances"
+    },
+    "moveout": {
+      "label": "Move out",
+      "perSqft": 0.35,
+      "hourFactor": 2.2,
+      "blurb": "Empty home, every surface, ready to hand over"
+    }
   },
   "perBedroom": 15,
   "perBathroom": 25,
@@ -17,8 +40,53 @@
   "hoursPerBedroom": 0.25,
   "hoursPerBathroom": 0.5,
   "hoursPerExtraFloor": 0.5,
-  "maxHoursPerCleaner": 5,
-  "maxCrew": 6,
+  "maxHoursPerCleaner": 6,
+  "maxCrew": 4,
   "minHours": 2,
-  "minPrice": 120
+  "minPrice": 120,
+  "rooms": {
+    "maid": {
+      "label": "Maid's room",
+      "price": 30,
+      "hours": 0.4
+    },
+    "balcony": {
+      "label": "Balcony",
+      "price": 25,
+      "hours": 0.3
+    },
+    "majlis": {
+      "label": "Majlis",
+      "price": 45,
+      "hours": 0.6
+    }
+  },
+  "extras": {
+    "sofa": {
+      "label": "Sofa",
+      "price": 60,
+      "hours": 0.5
+    },
+    "carpet": {
+      "label": "Carpet",
+      "price": 50,
+      "hours": 0.5
+    },
+    "windows": {
+      "label": "Windows",
+      "price": 70,
+      "hours": 0.8
+    },
+    "oven": {
+      "label": "Oven",
+      "price": 45,
+      "hours": 0.5
+    },
+    "fridge": {
+      "label": "Fridge",
+      "price": 35,
+      "hours": 0.4
+    }
+  },
+  "weeklyDiscount": 0.15
 }

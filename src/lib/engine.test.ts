@@ -18,12 +18,21 @@ describe("engine", () => {
   it("minimum price", () => { expect(estimate(c, { sqft: 500, floors: 1, bedrooms: 0, bathrooms: 1, type: "standard" }).subtotal).toBe(120); });
   it("crew grows with size, hours stay per visit", () => {
     const small = estimate(c, { ...base, sqft: 800, bedrooms: 1, bathrooms: 1 }), big = estimate(c, { ...base, sqft: 6000, floors: 3, type: "moveout", bedrooms: 6, bathrooms: 5 });
-    expect(small.crew).toBe(1); expect(big.crew).toBeGreaterThan(2); expect(big.hours).toBeLessThanOrEqual(8);
+    expect(small.crew).toBe(1); expect(big.crew).toBe(4); expect(big.crew).toBeLessThanOrEqual(4); expect(big.hours).toBeGreaterThan(c.maxHoursPerCleaner);
   });
-  it("label and sqm", () => { expect(homeLabel(c, { ...base, floors: 3, sqft: 2800, bedrooms: 1, bathrooms: 1.5 })).toBe("A 3 floor home: 2,800 sq ft, 1 bed, 1.5 bath, standard cleaning"); expect(sqftToSqm(1000)).toBe(93); });
+  it("label and sqm", () => { expect(homeLabel(c, { ...base, floors: 3, sqft: 2800, bedrooms: 1, bathrooms: 1.5 })).toBe("A 3 floor home: 2,800 sq ft · 1 bed · 1.5 bath · standard cleaning"); expect(sqftToSqm(1000)).toBe(93); });
   it("whatsapp link carries the summary", () => {
     const u = whatsappUrl(c, base, estimate(c, base), { name: "Omar Khalid", phone: "0501234567", email: "", address: "Villa 12, Al Barsha", date: "2026-10-23", time: "09:00", notes: "Gate code 4411" });
     expect(u.startsWith("https://wa.me/971500000000?text=")).toBe(true);
     const t = decodeURIComponent(u.split("text=")[1]); expect(t).toContain("Omar Khalid"); expect(t).toContain("Gate code 4411"); expect(t).toContain("AED 352"); expect(t).not.toContain("Email:");
   });
+});
+
+it("mid home gets a small crew", () => { const e = estimate(c, { sqft: 4000, floors: 3, bedrooms: 4, bathrooms: 3, type: "deep" }); expect(e.crew).toBeLessThanOrEqual(4); expect(e.hours).toBeGreaterThanOrEqual(4); });
+
+it("add ons and weekly saving", () => {
+  const b = { sqft: 2000, floors: 1 as const, bedrooms: 3, bathrooms: 2, type: "standard" as const };
+  const plain = estimate(c, b), more = estimate(c, { ...b, rooms: ["majlis"], extras: ["oven"] });
+  expect(more.subtotal).toBe(plain.subtotal + 45 + 45);
+  const wk = estimate(c, { ...b, weekly: true }); expect(wk.saving).toBeGreaterThan(0); expect(wk.total).toBeLessThan(plain.total);
 });
