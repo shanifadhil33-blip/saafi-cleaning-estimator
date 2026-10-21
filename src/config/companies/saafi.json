@@ -1,0 +1,24 @@
+{
+  "slug": "saafi",
+  "brand": { "name": "Saafi", "tagline": "Home cleaning across the UAE", "logoText": "S", "accent": "#C9A46A", "bg": "#0E0F11", "surface": "#17191C" },
+  "whatsapp": "971500000000",
+  "currency": "AED",
+  "vatRate": 0.05,
+  "sqft": { "min": 500, "max": 6000, "step": 50, "default": 1800 },
+  "types": {
+    "standard": { "label": "Standard", "perSqft": 0.12, "hourFactor": 1.0, "blurb": "Dusting, floors, kitchen and bathrooms" },
+    "deep": { "label": "Deep", "perSqft": 0.3, "hourFactor": 2.0, "blurb": "Inside cupboards, grout, behind appliances" },
+    "moveout": { "label": "Move out", "perSqft": 0.35, "hourFactor": 2.2, "blurb": "Empty home, every surface, ready to hand over" }
+  },
+  "perBedroom": 15,
+  "perBathroom": 25,
+  "perExtraFloor": 60,
+  "sqftPerCleanerHour": 350,
+  "hoursPerBedroom": 0.25,
+  "hoursPerBathroom": 0.5,
+  "hoursPerExtraFloor": 0.5,
+  "maxHoursPerCleaner": 5,
+  "maxCrew": 6,
+  "minHours": 2,
+  "minPrice": 120
+}
