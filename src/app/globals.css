@@ -362,3 +362,25 @@ html[lang="ur"] .extra .name small{line-height:1.9}
   .kinds::-webkit-scrollbar{display:none}
   .kind{flex:none;height:42px;padding:0 16px}
 }
+/* Booking realism */
+.sub-field{padding-top:16px}
+.sum-short .crew b{color:var(--text);font-weight:500}
+.sum-short{flex-direction:column;gap:2px}
+.bar-crew{display:block;color:var(--muted);font-size:12px;line-height:1.3}
+html[lang="ur"] .bar-crew{line-height:1.9;font-size:11px}
+.bar .price{font-size:26px!important}
+@media (max-width:380px){.bar .price{font-size:23px!important}.bar .btn span{font-size:13.5px}}
+.price-line .price{font-size:40px}
+.chips .chip:disabled{opacity:.35;cursor:not-allowed}
+.chips.times{gap:6px}.chips.times .chip{height:40px;padding:0 14px;font-variant-numeric:tabular-nums}
+.err.show{display:block}
+.chips[data-bad] .chip:not(:disabled){border-color:#8a8a8a}
+.addr-toggle{height:50px;margin:2px 0 4px}
+.addr{padding-top:12px}.addr .two{gap:10px}
+textarea.input{height:auto;min-height:64px;padding:12px 18px;border-radius:20px;resize:none;line-height:1.45;font:inherit}
+.note.approx{margin:2px 4px 12px}
+.dlg-sum span{overflow-wrap:anywhere}.dlg-sum b{color:var(--text);font-weight:500}
+.dlg-sum strong{font-size:22px}
+.ref-line{margin:-12px 0 18px!important;color:var(--muted)}.ref-line b{color:var(--text);letter-spacing:.06em}
+.input{text-overflow:ellipsis}
+.btn.primary svg{flex:none}

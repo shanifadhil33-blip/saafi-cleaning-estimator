@@ -196,3 +196,51 @@ export const MORE: Record<Lang, any> = {
     lines2: { maid: "میڈ روم" },
   },
 };
+
+/* Booking realism: crew and hours, materials, furnished, slots, address, reference, copy. */
+type Msg = { ref: string; name: string; area: string; address: string; date: string; time: string; home: string; type: string; freq: string; crew: string; materials: string; furnished: string; extras: string; estimate: string; notes: string };
+const lines = (rows: [string, string][]) => rows.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join("\n");
+export const REAL: Record<Lang, any> = {
+  en: {
+    materials: "Cleaning materials", matBring: "Bring them", matOwn: "I have them", matNote: (m: string) => `${m} per cleaner hour for materials`,
+    furnishedQ: "Is the home furnished?", furnished: "Furnished", unfurnished: "Empty",
+    crew: (c: number, h: number) => `${c} ${c === 1 ? "cleaner" : "cleaners"}, about ${h} ${h === 1 ? "hour" : "hours"}`,
+    range: (a: string, b: string) => `${a} to ${b}`, from: "from",
+    approx: "Approximate. The final price is confirmed on WhatsApp.",
+    labour: (c: number, h: number, r: string) => `${c} × ${h} h at ${r} per hour`, matLine: "Cleaning materials", surcharge: (d: string) => `${d} rate`,
+    today: "Today", start: "Start time", errDay: "Pick a day", errTime: "Pick a start time",
+    closed: (d: string) => `We do not work on ${d}. Please pick another day.`, past: "Please pick today or a later date.",
+    addr: "Address details", optional: "Optional", building: "Building or community", unit: "Flat or villa number", notes: "Notes for the team", notesPh: "Parking, access, gate code",
+    copy: "Copy details", copied: "Copied", web: "Use WhatsApp Web", ref: "Ref",
+    matBringMsg: "Please bring them", matOwnMsg: "I have them",
+    msg: (o: Msg) => `New cleaning booking, ref ${o.ref}\n\n` + lines([["Name", o.name], ["Area", o.area], ["Address", o.address], ["Date", o.date], ["Start", o.time], ["Home", o.home], ["Cleaning", `${o.type}, ${o.freq}`], ["Crew", o.crew], ["Materials", o.materials], ["Furnished", o.furnished], ["Extras", o.extras], ["Estimate", o.estimate], ["Notes", o.notes]]) + `\n\nTo confirm, reply: Confirmed ${o.ref}`,
+  },
+  ar: {
+    materials: "مواد التنظيف", matBring: "أحضروها معكم", matOwn: "متوفرة لدي", matNote: (m: string) => `${m} لكل ساعة عمل للمواد`,
+    furnishedQ: "هل المنزل مفروش؟", furnished: "مفروش", unfurnished: "فارغ",
+    crew: (c: number, h: number) => `${c === 1 ? "عامل نظافة واحد" : c === 2 ? "عاملا نظافة" : `${c} عمال نظافة`}، حوالي ${h === 1 ? "ساعة" : h === 2 ? "ساعتين" : `${h} ساعات`}`,
+    range: (a: string, b: string) => `${a} إلى ${b}`, from: "من",
+    approx: "سعر تقريبي. يتم تأكيد السعر النهائي عبر واتساب.",
+    labour: (c: number, h: number, r: string) => `${c} × ${h} ساعة بسعر ${r} للساعة`, matLine: "مواد التنظيف", surcharge: (d: string) => `سعر يوم ${d}`,
+    today: "اليوم", start: "وقت البدء", errDay: "اختر اليوم", errTime: "اختر وقت البدء",
+    closed: (d: string) => `لا نعمل يوم ${d}. يرجى اختيار يوم آخر.`, past: "يرجى اختيار اليوم أو تاريخ لاحق.",
+    addr: "تفاصيل العنوان", optional: "اختياري", building: "اسم البناية أو المجمع", unit: "رقم الشقة أو الفيلا", notes: "ملاحظات للفريق", notesPh: "المواقف، الدخول، رمز البوابة",
+    copy: "نسخ التفاصيل", copied: "تم النسخ", web: "استخدم واتساب ويب", ref: "رقم الحجز",
+    matBringMsg: "يرجى إحضارها", matOwnMsg: "متوفرة لدي",
+    msg: (o: Msg) => `حجز تنظيف جديد، رقم ${o.ref}\n\n` + lines([["الاسم", o.name], ["المنطقة", o.area], ["العنوان", o.address], ["التاريخ", o.date], ["وقت البدء", o.time], ["المنزل", o.home], ["التنظيف", `${o.type}، ${o.freq}`], ["الفريق", o.crew], ["مواد التنظيف", o.materials], ["الأثاث", o.furnished], ["الإضافات", o.extras], ["السعر التقديري", o.estimate], ["ملاحظات", o.notes]]) + `\n\nللتأكيد، أرسلوا: تم التأكيد ${o.ref}`,
+  },
+  ur: {
+    materials: "صفائی کا سامان", matBring: "آپ لے آئیں", matOwn: "میرے پاس ہے", matNote: (m: string) => `سامان کے لیے ${m} فی گھنٹہ فی کلینر`,
+    furnishedQ: "کیا گھر میں فرنیچر ہے؟", furnished: "فرنیچر والا", unfurnished: "خالی",
+    crew: (c: number, h: number) => `${c} کلینر، تقریباً ${h} گھنٹے`,
+    range: (a: string, b: string) => `${a} سے ${b}`, from: "سے شروع",
+    approx: "اندازاً قیمت۔ حتمی قیمت واٹس ایپ پر طے ہوگی۔",
+    labour: (c: number, h: number, r: string) => `${c} × ${h} گھنٹے، ${r} فی گھنٹہ`, matLine: "صفائی کا سامان", surcharge: (d: string) => `${d} کا ریٹ`,
+    today: "آج", start: "شروع کا وقت", errDay: "دن چنیں", errTime: "شروع کا وقت چنیں",
+    closed: (d: string) => `ہم ${d} کو کام نہیں کرتے۔ کوئی اور دن چنیں۔`, past: "آج یا بعد کی تاریخ چنیں۔",
+    addr: "پتے کی تفصیل", optional: "اختیاری", building: "عمارت یا کمیونٹی کا نام", unit: "فلیٹ یا ولا نمبر", notes: "ٹیم کے لیے نوٹ", notesPh: "پارکنگ، داخلہ، گیٹ کوڈ",
+    copy: "تفصیل کاپی کریں", copied: "کاپی ہو گئی", web: "واٹس ایپ ویب استعمال کریں", ref: "حوالہ",
+    matBringMsg: "براہ کرم ساتھ لائیں", matOwnMsg: "میرے پاس ہے",
+    msg: (o: Msg) => `صفائی کی نئی بکنگ، حوالہ ${o.ref}\n\n` + lines([["نام", o.name], ["علاقہ", o.area], ["پتہ", o.address], ["تاریخ", o.date], ["شروع کا وقت", o.time], ["گھر", o.home], ["صفائی", `${o.type}، ${o.freq}`], ["ٹیم", o.crew], ["صفائی کا سامان", o.materials], ["فرنیچر", o.furnished], ["اضافی سروسز", o.extras], ["اندازاً قیمت", o.estimate], ["نوٹ", o.notes]]) + `\n\nتصدیق کے لیے جواب دیں: تصدیق شدہ ${o.ref}`,
+  },
+};

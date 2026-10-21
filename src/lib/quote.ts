@@ -6,12 +6,15 @@ type Range = [number, number];
 export interface KindCfg { rate: number; floors: Range; beds: Range; baths: Range; size: Range; base: number; perBed: number; def: { beds: number; baths: number; floors: number } }
 export interface Company {
   slug: string; brand: { en: string; ar: string; ur: string }; whatsapp: string; currency: string;
-  minimum: number; roundTo: number; extraFloor: number; weeklyDiscount: number; maidRoom: number;
-  types: Record<CleanType, { rate: number; bedroom: number; bathroom: number }>;
-  kinds: Record<HomeKind, KindCfg>; extras: Record<string, number>; extrasFor?: Record<string, string[]>;
+  minimum: number; roundTo: number; weeklyDiscount: number; maidRoom: number;
+  labour: { ratePerHour: number; materialsPerHour: number; minHours: number; maxHoursPerVisit: number; maxCleaners: number; sqftPerCleanerHour: number; bedHours: number; bathHours: number; maidHours: number; floorHours: number; typeFactor: Record<CleanType, number>; furnishedFactor: number; rangeUp: number };
+  types: Record<CleanType, object>;
+  kinds: Record<HomeKind, KindCfg>; extras: Record<string, { price: number; hours: number }>; extrasFor?: Record<string, string[]>;
+  hours: { open: number; close: number; slotEvery: number; lastStart: number; leadHours: number };
+  closedDays: number[]; daySurchargePerHour: Record<string, number>; refPrefix: string;
   defaults: { kind: HomeKind; type: CleanType }; areas: string[];
 }
-export interface State { kind: HomeKind; sqft: number; floors: number; beds: number; baths: number; maid: boolean; type: CleanType; extras: string[]; weekly: boolean }
+export interface State { kind: HomeKind; sqft: number; floors: number; beds: number; baths: number; maid: boolean; type: CleanType; extras: string[]; weekly: boolean; materials: boolean; furnished: boolean }
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 export const SQM = 0.09290304;
 export const maidAllowed = (k: HomeKind) => k !== "studio";
@@ -43,23 +46,47 @@ export function switchKind(c: Company, s: State, kind: HomeKind): State {
   return fitKind(c, { ...s, kind, beds: d.beds, baths: d.baths, floors: d.floors, maid, sqft: autoSize(c, kind, d.beds, maid) });
 }
 export function initial(c: Company): State {
-  return switchKind(c, { kind: c.defaults.kind, sqft: 0, floors: 1, beds: 0, baths: 1, maid: false, type: c.defaults.type, extras: [], weekly: false }, c.defaults.kind);
+  return switchKind(c, { kind: c.defaults.kind, sqft: 0, floors: 1, beds: 0, baths: 1, maid: false, type: c.defaults.type, extras: [], weekly: false, materials: true, furnished: false }, c.defaults.kind);
 }
-export function quote(c: Company, s: State) {
-  const t = c.types[s.type], mul = c.kinds[s.kind].rate;
-  const rate = Math.round(t.rate * mul * 1000) / 1000;
-  const area = s.sqft * rate;
-  const beds = s.beds * t.bedroom;
-  const baths = s.baths * t.bathroom;
-  const floorsX = (s.floors - 1) * c.extraFloor;
+/** UAE style estimate: crew size and hours from the home, priced per cleaner hour, plus materials, fixed extras and day surcharge. */
+export function quote(c: Company, s: State, day?: number) {
+  const L = c.labour, K = c.kinds[s.kind];
+  const ex = Object.keys(c.extras).filter((k) => s.extras.includes(k));
+  let work = s.sqft / L.sqftPerCleanerHour + s.beds * L.bedHours + s.baths * L.bathHours + (s.floors - 1) * L.floorHours + (s.maid ? L.maidHours : 0);
+  work *= L.typeFactor[s.type] * (s.type === "move" && s.furnished ? L.furnishedFactor : 1) * K.rate;
+  work += ex.reduce((a, k) => a + c.extras[k].hours, 0);
+  const cleaners = clamp(Math.ceil(work / L.maxHoursPerVisit), 1, L.maxCleaners);
+  const hours = Math.max(L.minHours, Math.ceil((work / cleaners) * 2) / 2);
+  const ch = cleaners * hours;
+  const labour = ch * L.ratePerHour;
+  const materials = s.materials ? ch * L.materialsPerHour : 0;
+  const surcharge = day != null && c.daySurchargePerHour[String(day)] ? ch * c.daySurchargePerHour[String(day)] : 0;
   const maid = s.maid ? c.maidRoom : 0;
-  const extras = Object.keys(c.extras).filter((k) => s.extras.includes(k)).map((k) => [k, c.extras[k]] as [string, number]);
+  const extras = ex.map((k) => [k, c.extras[k].price] as [string, number]);
   const extrasSum = extras.reduce((a, e) => a + e[1], 0);
-  let sub = area + beds + baths + floorsX + maid + extrasSum;
+  let sub = labour + materials + surcharge + maid + extrasSum;
   const minimum = sub < c.minimum;
   if (minimum) sub = c.minimum;
   const disc = s.weekly ? sub * c.weeklyDiscount : 0;
-  const total = Math.round((sub - disc) / c.roundTo) * c.roundTo;
-  return { rate, area, beds, baths, floorsX, maid, extras, extrasSum, disc, total, minimum };
+  const r = (n: number) => Math.round(n / c.roundTo) * c.roundTo;
+  const total = r(sub - disc);
+  const high = Math.max(total, r(total * (1 + L.rangeUp)));
+  return { cleaners, hours, labour, materials, surcharge, maid, extras, extrasSum, disc, total, high, minimum, rate: L.ratePerHour };
+}
+/** Start time slots for a day; past times today (plus lead time) are disabled; closed days have none. */
+export function slots(c: Company, date: Date, now = new Date()) {
+  const H = c.hours, out: { h: number; ok: boolean }[] = [];
+  const closed = c.closedDays.includes(date.getDay());
+  const sameDay = date.toDateString() === now.toDateString();
+  for (let h = H.open; h <= H.lastStart; h += H.slotEvery) out.push({ h, ok: !closed && (!sameDay || h >= now.getHours() + now.getMinutes() / 60 + H.leadHours) });
+  return out;
+}
+export const isClosed = (c: Company, d: Date) => c.closedDays.includes(d.getDay());
+export function refCode(c: Company, seed = Math.random()) {
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let n = Math.floor(seed * 32 ** 5), out = "";
+  for (let i = 0; i < 5; i++) { out += A[n % 32]; n = Math.floor(n / 32); }
+  return (c.refPrefix || "") + out;
 }
 export const waUrl = (c: Company, msg: string) => `https://wa.me/${c.whatsapp}?text=${encodeURIComponent(msg)}`;
+/** Desktop without the app: open WhatsApp Web directly. */
+export const waWebUrl = (c: Company, msg: string) => `https://web.whatsapp.com/send?phone=${c.whatsapp}&text=${encodeURIComponent(msg)}`;

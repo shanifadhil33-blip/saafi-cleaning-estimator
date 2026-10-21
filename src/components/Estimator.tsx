@@ -5,8 +5,8 @@
 import dynamic from "next/dynamic";
 import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { STR, MORE, arBaths, arFloors, type Lang } from "@/lib/strings";
-import { KINDS, SQM, autoSize, extrasFor, fitKind, initial, maidAllowed, quote, switchKind, waUrl, type CleanType, type Company, type HomeKind, type State } from "@/lib/quote";
+import { STR, MORE, REAL, arBaths, arFloors, type Lang } from "@/lib/strings";
+import { KINDS, SQM, autoSize, extrasFor, fitKind, initial, isClosed, maidAllowed, quote, refCode, slots, switchKind, waUrl, waWebUrl, type CleanType, type Company, type HomeKind, type State } from "@/lib/quote";
 
 const HouseCanvas = dynamic(() => import("./House"), { ssr: false });
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -89,7 +89,7 @@ export default function Estimator({ company: c }: { company: Company }) {
   const [booking, setBooking] = useState<null | { x: number; y: number }>(null);
   const [sizeText, setSizeText] = useState<string | null>(null);
   const phone = usePhone();
-  const t = { ...STR[lang], ...MORE[lang] };
+  const t = { ...STR[lang], ...MORE[lang], ...REAL[lang] };
   const set = useCallback((f: (p: State) => State) => setRaw((p) => fitKind(c, f(p))), [c]);
   const K = c.kinds[s.kind];
   const brand = c.brand[lang] || c.brand.en || "";
@@ -117,6 +117,7 @@ export default function Estimator({ company: c }: { company: Company }) {
   const sub = [sizeStr(s.sqft), bedsShow(s.beds) + (s.maid ? ` + ${t.maid}` : ""), bathStr(s.baths), lang === "en" ? t.typeLong[s.type].toLowerCase() : t.typeLong[s.type]].join(sep);
   const homeLine = [t.kinds[s.kind], sizeStr(s.sqft), lang === "ar" ? arFloors(s.floors) : lang === "ur" ? `${s.floors} ${s.floors === 1 ? "منزل" : "منزلیں"}` : `${s.floors} ${s.floors === 1 ? "floor" : "floors"}`, bedsShow(s.beds), bathStr(s.baths), ...(s.maid ? [t.maid] : [])].join(sep);
   const exName = (k: string) => t.ex[k] ?? t.ex2[k] ?? k;
+  const range = (a: number, b: number) => t.range(money(a), lang === "en" ? fmt(b) : money(b));
 
   /* sheet (phone) */
   const sheetRef = useRef<HTMLElement>(null), scrollRef = useRef<HTMLDivElement>(null), barRef = useRef<HTMLDivElement>(null), topRef = useRef<HTMLElement>(null);
@@ -176,11 +177,8 @@ export default function Estimator({ company: c }: { company: Company }) {
   const typeKeys = Object.keys(c.types) as CleanType[];
   const extras = extrasFor(c, s.kind);
   const pct = Math.round(c.weeklyDiscount * 100);
-  const rateStr = (r: number) => t.money(r.toFixed(2));
-  const rows: [string, string][] = [[t.lines.area(fmt(s.sqft), rateStr(q.rate)), money(q.area)]];
-  if (s.beds) rows.push([t.lines.beds(s.beds), money(q.beds)]);
-  rows.push([t.lines.baths(s.baths), money(q.baths)]);
-  if (s.floors > 1) rows.push([t.lines.floorsX(s.floors - 1), money(q.floorsX)]);
+  const rows: [string, string][] = [[t.labour(q.cleaners, q.hours, money(q.rate)), money(q.labour)]];
+  if (q.materials) rows.push([t.matLine, money(q.materials)]);
   if (s.maid) rows.push([t.lines2.maid, money(q.maid)]);
   q.extras.forEach(([k, v]) => rows.push([exName(k), money(v)]));
   if (q.minimum) rows.push([t.lines.minimum, money(c.minimum)]);
@@ -192,13 +190,11 @@ export default function Estimator({ company: c }: { company: Company }) {
       <div className="sum-main">
         <div>
           <span className="sum-label">{t.total}</span>
-          <div className="price-line"><span className="price" data-price>{money(price)}</span><span className="per">{s.weekly ? t.perVisit : ""}</span></div>
+          <div className="price-line"><span className="price" data-price>{range(price, q.high)}</span><span className="per">{s.weekly ? t.perVisit : ""}</span></div>
         </div>
         <button type="button" className="btn primary book-btn" data-book onClick={openBook}><WaIcon /><span>{t.book}</span></button>
       </div>
-      <div className="sum-short">
-        {([[t.short.area, q.area], [t.short.rooms, q.beds + q.baths + q.floorsX + q.maid], [t.short.extras, q.extrasSum]] as [string, number][]).map(([l, v]) => <span key={l}>{l} <b>{money(v)}</b></span>)}
-      </div>
+      <div className="sum-short"><span className="crew"><b>{t.crew(q.cleaners, q.hours)}</b></span><span>{t.approx}</span></div>
       <button type="button" className="link-btn" aria-expanded={detailsOpen} aria-controls="detailsPanel" onClick={() => setDetailsOpen((v) => !v)}><span>{detailsOpen ? t.hide : t.details}</span><Chev s={12} /></button>
       <Reveal open={detailsOpen} id="detailsPanel"><div>
         <ul className="lines">{rows.map(([a, b]) => <li key={a}><span>{a}</span><span>{b}</span></li>)}<li className="total"><span>{t.lines.total + (s.weekly ? `${sep}${t.perVisit}` : "")}</span><span>{money(q.total)}</span></li></ul>
@@ -281,11 +277,21 @@ export default function Estimator({ company: c }: { company: Company }) {
                     {typeKeys.map((k) => (
                       <button key={k} type="button" className="type" role="radio" data-v={k} aria-checked={s.type === k} tabIndex={s.type === k ? 0 : -1} onClick={() => set((x) => ({ ...x, type: k }))}>
                         <span className="radio" aria-hidden="true" />
-                        <span className="type-body"><span className="type-top"><span className="type-name">{t.types[k][0]}</span><span className="type-rate">{t.perSqft((c.types[k].rate * K.rate).toFixed(2))}</span></span>
+                        <span className="type-body"><span className="type-top"><span className="type-name">{t.types[k][0]}</span><span className="type-rate">{(() => { const qq = quote(c, fitKind(c, { ...s, type: k })); return t.crew(qq.cleaners, qq.hours); })()}</span></span>
                           <Reveal open={s.type === k}><p className="type-desc">{t.types[k][1]}</p></Reveal></span>
                       </button>
                     ))}
                   </div>
+                  <Reveal open={s.type === "move"}><div className="sub-field">
+                    <div className="field-head"><span className="label" id="furnLbl">{t.furnishedQ}</span></div>
+                    <Seg id="furnSeg" label={t.furnishedQ} dir={t.dir} value={s.furnished ? "f" : "u"} onPick={(v) => set((x) => ({ ...x, furnished: v === "f" }))} options={[{ v: "u", node: t.unfurnished }, { v: "f", node: t.furnished }]} />
+                  </div></Reveal>
+                </div>
+
+                <div className="field">
+                  <div className="field-head"><span className="label" id="matLbl">{t.materials}</span></div>
+                  <Seg id="matSeg" label={t.materials} dir={t.dir} value={s.materials ? "bring" : "own"} onPick={(v) => set((x) => ({ ...x, materials: v === "bring" }))} options={[{ v: "bring", node: t.matBring }, { v: "own", node: t.matOwn }]} />
+                  <p className="hint freq-note">{t.matNote(money(c.labour.materialsPerHour))}</p>
                 </div>
 
                 <div className="field">
@@ -294,7 +300,7 @@ export default function Estimator({ company: c }: { company: Company }) {
                     <span className="meta"><span>{s.extras.length ? t.extrasCount(s.extras.length) : t.extrasNone}</span><Chev /></span>
                   </button>
                   <Reveal open={extrasOpen} id="extrasPanel"><div className="extras">
-                    {extras.map((k) => <button key={k} type="button" className="extra" data-k={k} aria-pressed={s.extras.includes(k)} onClick={() => set((x) => ({ ...x, extras: x.extras.includes(k) ? x.extras.filter((e) => e !== k) : [...x.extras, k] }))}><Tick /><span className="name">{exName(k)}</span><span className="amt">{money(c.extras[k])}</span></button>)}
+                    {extras.map((k) => <button key={k} type="button" className="extra" data-k={k} aria-pressed={s.extras.includes(k)} onClick={() => set((x) => ({ ...x, extras: x.extras.includes(k) ? x.extras.filter((e) => e !== k) : [...x.extras, k] }))}><Tick /><span className="name">{exName(k)}</span><span className="amt">{money(c.extras[k].price)}</span></button>)}
                   </div></Reveal>
                 </div>
 
@@ -325,52 +331,79 @@ export default function Estimator({ company: c }: { company: Company }) {
       </div>
 
       <div className={`bar${phone ? " in" : ""}`} id="bar" ref={barRef}>
-        <div className="bar-price"><small>{s.weekly ? `${t.total}${sep}${t.perVisit}` : t.total}</small><span className="price" data-price>{money(price)}</span></div>
+        <div className="bar-price"><small>{s.weekly ? `${t.total}${sep}${t.perVisit}` : t.total}</small><span className="price" data-price>{range(price, q.high)}</span><span className="bar-crew">{t.crew(q.cleaners, q.hours)}</span></div>
         <button type="button" className="btn primary" data-book onClick={openBook}><WaIcon /><span>{t.book}</span></button>
       </div>
 
-      <AnimatePresence>{booking && <Booking key="bk" c={c} t={t} lang={lang} brand={brand} s={s} q={q} money={money} homeLine={homeLine} exName={exName} phone={phone} origin={booking} onClose={() => setBooking(null)} />}</AnimatePresence>
+      <AnimatePresence>{booking && <Booking key="bk" c={c} t={t} lang={lang} brand={brand} s={s} q={q} money={money} homeLine={homeLine} exName={exName} range={range} phone={phone} origin={booking} onClose={() => setBooking(null)} />}</AnimatePresence>
     </MotionConfig>
   );
 }
 
 /* ----------------------------- booking ----------------------------- */
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-function nextWeekend(from: Date): [Date, Date | null] { const d = new Date(from), day = d.getDay(); if (day === 6 || day === 0) return [d, day === 6 ? addDays(d, 1) : null]; const sat = addDays(d, 6 - day); return [sat, addDays(sat, 1)]; }
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const LIMIT = { name: 60, area: 80, building: 80, unit: 20, notes: 300 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function Booking({ c, t, lang, brand, s, q, money, homeLine, exName, phone, origin, onClose }: { c: Company; t: any; lang: Lang; brand: string; s: State; q: ReturnType<typeof quote>; money: (n: number) => string; homeLine: string; exName: (k: string) => string; phone: boolean; origin: { x: number; y: number }; onClose: () => void }) {
-  const [name, setName] = useState(""), [area, setArea] = useState(""), [date, setDate] = useState<null | "tomorrow" | "weekend" | "pick">(null), [dateValue, setDateValue] = useState("");
-  const [bad, setBad] = useState<{ name?: boolean; area?: boolean }>({}), [done, setDone] = useState(false);
+function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin, onClose }: { c: Company; t: any; lang: Lang; brand: string; s: State; q: ReturnType<typeof quote>; money: (n: number) => string; homeLine: string; exName: (k: string) => string; range: (a: number, b: number) => string; phone: boolean; origin: { x: number; y: number }; onClose: () => void }) {
+  const [f, setF] = useState({ name: "", area: "", building: "", unit: "", notes: "" });
+  const [day, setDay] = useState<null | "today" | "tomorrow" | "pick">(null), [dateValue, setDateValue] = useState(""), [time, setTime] = useState<number | null>(null);
+  const [bad, setBad] = useState<Record<string, boolean>>({}), [done, setDone] = useState(false), [addrOpen, setAddrOpen] = useState(false), [copied, setCopied] = useState(false);
+  const [ref] = useState(() => refCode(c));
+  const [now] = useState(() => new Date());
   const nameRef = useRef<HTMLInputElement>(null), areaRef = useRef<HTMLInputElement>(null), dlg = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    setName(store.get("name") || ""); setArea(store.get("area") || "");
+    setF((x) => ({ ...x, name: store.get("name") || "", area: store.get("area") || "", building: store.get("building") || "", unit: store.get("unit") || "" }));
     const prev = document.activeElement as HTMLElement | null;
     const id = setTimeout(() => { if (!phone) (store.get("name") ? areaRef.current : nameRef.current)?.focus({ preventScroll: true }); else dlg.current?.focus({ preventScroll: true }); }, 320);
     const k = (e: KeyboardEvent) => {
       if (e.key === "Escape") { e.preventDefault(); onClose(); }
-      if (e.key === "Tab" && dlg.current) { const f = Array.from(dlg.current.querySelectorAll<HTMLElement>("button, a[href], input")).filter((n) => n.offsetParent !== null); if (!f.length) return; if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); } else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); } }
+      if (e.key === "Tab" && dlg.current) { const fs = Array.from(dlg.current.querySelectorAll<HTMLElement>("button:not(:disabled), a[href], input, textarea")).filter((n) => n.offsetParent !== null); if (!fs.length) return; if (e.shiftKey && document.activeElement === fs[0]) { e.preventDefault(); fs[fs.length - 1].focus(); } else if (!e.shiftKey && document.activeElement === fs[fs.length - 1]) { e.preventDefault(); fs[0].focus(); } }
     };
     document.addEventListener("keydown", k);
     return () => { clearTimeout(id); document.removeEventListener("keydown", k); prev?.focus?.({ preventScroll: true }); };
   }, [onClose, phone]);
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const picked = dateValue ? (() => { const [y, m, d] = dateValue.split("-").map(Number); return new Date(y, m - 1, d); })() : null;
+  const date = day === "today" ? today : day === "tomorrow" ? addDays(today, 1) : picked;
+  const todaySlots = slots(c, today, now), tomorrowSlots = slots(c, addDays(today, 1), now);
+  const daySlots = date ? slots(c, date, now) : slots(c, addDays(today, 1), now);
+  const dateErr = day === "pick" && picked ? (picked < today ? t.past : isClosed(c, picked) ? t.closed(new Intl.DateTimeFormat(t.locale, { weekday: "long" }).format(picked)) : "") : "";
+  const q = quote(c, s, date ? date.getDay() : undefined);
+  const timeLabel = (h: number) => new Intl.DateTimeFormat(lang === "en" ? "en-US" : t.locale, { hour: "numeric", hour12: true, minute: h % 1 ? "2-digit" : undefined }).format(new Date(2026, 0, 1, Math.floor(h), (h % 1) * 60));
   const dayLabel = (d: Date) => new Intl.DateTimeFormat(t.locale, { weekday: "short", day: "numeric", month: "short" }).format(d);
   const sep = lang === "en" ? ", " : "، ";
-  const dateText = () => {
-    const today = new Date();
-    if (date === "tomorrow") return `${t.tomorrow}${sep}${dayLabel(addDays(today, 1))}`;
-    if (date === "weekend") { const [a, b] = nextWeekend(today); return `${t.weekend}${sep}${dayLabel(a)}${b ? ` ${t.or} ${dayLabel(b)}` : ""}`; }
-    if (date === "pick" && dateValue) { const [y, m, d] = dateValue.split("-").map(Number); return dayLabel(new Date(y, m - 1, d)); }
-    return t.flexible;
+  useEffect(() => { if (time != null && !daySlots.find((x) => x.h === time)?.ok) setTime(null); }, [day, dateValue]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const msg = t.msg({
+    ref, name: f.name.trim(), area: f.area.trim(),
+    address: [f.building.trim(), f.unit.trim()].filter(Boolean).join(sep),
+    date: date ? `${day === "today" ? t.today + sep : day === "tomorrow" ? t.tomorrow + sep : ""}${dayLabel(date)}` : "",
+    time: time != null ? timeLabel(time) : "",
+    home: homeLine, type: t.typeLong[s.type], freq: s.weekly ? t.weekly : t.oneTime,
+    crew: t.crew(q.cleaners, q.hours), materials: s.materials ? t.matBringMsg : t.matOwnMsg,
+    furnished: s.type === "move" ? (s.furnished ? t.furnished : t.unfurnished) : "",
+    extras: q.extras.length ? q.extras.map(([k]) => exName(k)).join(sep) : t.none,
+    estimate: `${range(q.total, q.high)}${s.weekly ? ` ${t.perVisit}` : ""}`, notes: f.notes.trim(),
+  });
+  const href = phone ? waUrl(c, msg) : waWebUrl(c, msg);
+  const validate = () => {
+    const miss = { name: !f.name.trim(), area: !f.area.trim(), day: !date || !!dateErr, time: time == null };
+    setBad(miss); return !Object.values(miss).some(Boolean) ? null : miss;
   };
-  const href = waUrl(c, t.msg({ brand, name: name.trim(), area: area.trim(), date: dateText(), home: homeLine, type: t.typeLong[s.type], freq: s.weekly ? t.weekly : t.oneTime, extras: q.extras.length ? q.extras.map(([k]) => exName(k)).join(sep) : t.none, total: money(q.total), weekly: s.weekly }));
   const send = (e: React.MouseEvent) => {
-    const miss = { name: !name.trim(), area: !area.trim() };
-    if (miss.name || miss.area) { e.preventDefault(); setBad(miss); (miss.name ? nameRef : areaRef).current?.focus(); return; }
-    store.set("name", name.trim()); store.set("area", area.trim());
+    const miss = validate();
+    if (miss) { e.preventDefault(); if (miss.name) nameRef.current?.focus(); else if (miss.area) areaRef.current?.focus(); return; }
+    (["name", "area", "building", "unit"] as const).forEach((k) => store.set(k, f[k].trim()));
     setTimeout(() => setDone(true), 140);
   };
-  const minDate = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  const copy = async () => { try { await navigator.clipboard.writeText(msg); } catch { const ta = document.createElement("textarea"); ta.value = msg; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove(); } setCopied(true); setTimeout(() => setCopied(false), 1800); };
+  const field = (k: keyof typeof f, label: string, extra: React.InputHTMLAttributes<HTMLInputElement> = {}, ref?: React.RefObject<HTMLInputElement | null>, err?: string) => (
+    <label className="f"><span>{label}</span><input ref={ref} className="input" dir="auto" maxLength={LIMIT[k]} aria-invalid={bad[k] || undefined} value={f[k]} onChange={(e) => { setF((x) => ({ ...x, [k]: e.target.value })); setBad((b) => ({ ...b, [k]: false })); }} {...extra} />{err && <p className="err">{err}</p>}</label>
+  );
+  const minDate = ymd(today);
   return (
     <div className="modal" id="modal">
       <motion.div className="scrim" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.28 }} />
@@ -386,26 +419,46 @@ function Booking({ c, t, lang, brand, s, q, money, homeLine, exName, phone, orig
               <motion.div key="form" id="viewForm" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: phone ? 0 : 0.16 } }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
                 <div className="dlg-head"><h3 id="bkTitle">{t.book}</h3><button type="button" className="icon-btn" aria-label={t.close} onClick={onClose}><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></button></div>
                 <p className="dlg-lead">{t.bkLead(brand)}</p>
-                <div className="dlg-sum"><span>{`${t.typeLong[s.type]}${sep}${homeLine}`}</span><strong>{money(q.total)}</strong></div>
-                <label className="f"><span>{t.name}</span><input ref={nameRef} className="input" id="fName" autoComplete="name" enterKeyHint="next" aria-invalid={bad.name || undefined} value={name} onChange={(e) => { setName(e.target.value); setBad((b) => ({ ...b, name: false })); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); areaRef.current?.focus(); } }} /><p className="err">{t.errName}</p></label>
-                <label className="f"><span>{t.area}</span><input ref={areaRef} className="input" id="fArea" list="areas" autoComplete="address-level3" enterKeyHint="done" aria-invalid={bad.area || undefined} value={area} onChange={(e) => { setArea(e.target.value); setBad((b) => ({ ...b, area: false })); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }} /><p className="err">{t.errArea}</p></label>
+                <div className="dlg-sum"><span>{`${t.typeLong[s.type]}${sep}${homeLine}`}<br /><b>{t.crew(q.cleaners, q.hours)}</b></span><strong>{range(q.total, q.high)}</strong></div>
+                {field("name", t.name, { autoComplete: "name", enterKeyHint: "next", id: "fName", onKeyDown: (e) => { if (e.key === "Enter") { e.preventDefault(); areaRef.current?.focus(); } } }, nameRef, t.errName)}
+                {field("area", t.area, { autoComplete: "address-level3", enterKeyHint: "done", id: "fArea", list: "areas", onKeyDown: (e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } } }, areaRef, t.errArea)}
                 <datalist id="areas">{c.areas.map((a) => <option key={a} value={a} />)}</datalist>
                 <div className="f">
                   <span id="dateLbl">{t.date}</span>
-                  <div className="chips" role="group" aria-labelledby="dateLbl">
-                    {(["tomorrow", "weekend", "pick"] as const).map((d) => <button key={d} type="button" className="chip" aria-pressed={date === d} onClick={() => setDate((v) => (v === d ? null : d))}>{t[d]}</button>)}
+                  <div className="chips" role="group" aria-labelledby="dateLbl" data-bad={bad.day || undefined}>
+                    {(["today", "tomorrow", "pick"] as const).map((d) => {
+                      const off = d === "today" ? !todaySlots.some((x) => x.ok) : d === "tomorrow" ? !tomorrowSlots.some((x) => x.ok) : false;
+                      return <button key={d} type="button" className="chip" data-day={d} disabled={off} aria-pressed={day === d} onClick={() => { setDay((v) => (v === d ? null : d)); setBad((b) => ({ ...b, day: false })); }}>{t[d]}</button>;
+                    })}
                   </div>
-                  <Reveal open={date === "pick"}><input className="input date-in" id="fDate" type="date" min={minDate} aria-label={t.pick} value={dateValue} onChange={(e) => setDateValue(e.target.value)} /></Reveal>
+                  <Reveal open={day === "pick"}><input className="input date-in" id="fDate" type="date" min={minDate} aria-label={t.pick} aria-invalid={!!dateErr || undefined} value={dateValue} onChange={(e) => setDateValue(e.target.value)} /></Reveal>
+                  {(dateErr || (bad.day && !date)) && <p className="err show">{dateErr || t.errDay}</p>}
                 </div>
-                <div className="dlg-foot"><a className="btn primary wide" id="sendBtn" href={href} target="_blank" rel="noopener" onClick={send}><span>{t.send}</span></a></div>
+                <div className="f">
+                  <span id="timeLbl">{t.start}</span>
+                  <div className="chips times" role="group" aria-labelledby="timeLbl">
+                    {daySlots.map((x) => <button key={x.h} type="button" className="chip" data-h={x.h} disabled={!x.ok || !!dateErr} aria-pressed={time === x.h} onClick={() => { setTime((v) => (v === x.h ? null : x.h)); setBad((b) => ({ ...b, time: false })); }}>{timeLabel(x.h)}</button>)}
+                  </div>
+                  {bad.time && <p className="err show">{t.errTime}</p>}
+                </div>
+                <button type="button" className="row-toggle addr-toggle" aria-expanded={addrOpen} onClick={() => setAddrOpen((v) => !v)}><span className="label">{t.addr}</span><span className="meta"><span>{t.optional}</span><Chev /></span></button>
+                <Reveal open={addrOpen}><div className="addr">
+                  <div className="two">{field("building", t.building, { autoComplete: "address-line1", id: "fBuilding", tabIndex: addrOpen ? 0 : -1 })}{field("unit", t.unit, { id: "fUnit", tabIndex: addrOpen ? 0 : -1 })}</div>
+                  <label className="f"><span>{t.notes}</span><textarea className="input area-in" dir="auto" id="fNotes" rows={2} maxLength={LIMIT.notes} tabIndex={addrOpen ? 0 : -1} placeholder={t.notesPh} value={f.notes} onChange={(e) => setF((x) => ({ ...x, notes: e.target.value }))} /></label>
+                </div></Reveal>
+                <p className="note approx">{t.approx}</p>
+                <div className="dlg-foot"><a className="btn primary wide" id="sendBtn" href={href} target="_blank" rel="noopener" onClick={send}><WaIcon /><span>{t.send}</span></a></div>
               </motion.div>
             ) : (
               <motion.div key="done" id="viewDone" className="done play" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.42, ease: EASE }}>
                 <div className="done-mark"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path d="M7 14.5l4.6 4.5L21 9.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></div>
                 <h3>{t.opening}</h3>
                 <p>{t.doneLead(brand)}</p>
+                <p className="ref-line">{t.ref} <b dir="ltr">{ref}</b></p>
                 <div className="stack">
-                  <a className="btn ghost wide" href={href} target="_blank" rel="noopener"><span>{t.again}</span></a>
+                  <a className="btn ghost wide" href={waUrl(c, msg)} target="_blank" rel="noopener"><span>{t.again}</span></a>
+                  {!phone && <a className="btn ghost wide" href={waWebUrl(c, msg)} target="_blank" rel="noopener"><span>{t.web}</span></a>}
+                  <button type="button" className="btn ghost wide" id="copyBtn" onClick={copy}><span>{copied ? t.copied : t.copy}</span></button>
                   <button type="button" className="btn primary wide" onClick={onClose}><span>{t.done}</span></button>
                 </div>
               </motion.div>
