@@ -1,236 +1,494 @@
-"use client";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, ContactShadows } from "@react-three/drei";
-import { useEffect, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
-import type { Home } from "@/lib/engine";
-import { ROOM_COLORS } from "./rooms";
+'use client';
+/**
+ * House.tsx
+ * Matte grey dollhouse cutaway for react-three-fiber. Rebuilds live from
+ * (sqft, floors, bedrooms, bathrooms) using houseLayout.ts.
+ *
+ * Every piece has a stable key, so when inputs change pieces spring to their new
+ * place, new ones pop in with a small stagger and removed ones shrink away.
+ * The camera refits smoothly so the whole house stays inside the visible area.
+ *
+ * Usage (Next.js App Router, client only):
+ *   const HouseCanvas = dynamic(() => import('@/components/House'), { ssr: false });
+ *   <HouseCanvas sqft={2200} floors={2} bedrooms={3} bathrooms={2}
+ *     insets={{ top: 96, bottom: 170 }} />   // px covered by your title and price card
+ *
+ * For a phone bottom sheet, pass a function so the house recentres every frame
+ * while the sheet moves:  insets={() => ({ top: 110, bottom: innerHeight - sheetTop })}
+ *
+ * Tested against three 0.170 and @react-three/fiber 9.
+ */
+import { useEffect, useMemo, useRef } from 'react';
+import type { CSSProperties } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
+import { computeLayout, wedgePositions, writeRoof, ROOF_VERTS } from '@/lib/houseLayout';
+import type { HouseInput, HouseLayout, Motion, Shape, Tone } from '@/lib/houseLayout';
 
-type Kind = "living" | "kitchen" | "bedroom" | "bathroom" | "hall" | "maid" | "majlis";
-export type Focus = { kind: string; n: number };
-type Room = { id: string; kind: Kind; x: number; w: number };
-type FloorPlan = { W: number; D: number; rooms: Room[] };
+export const TONES: Record<Tone, string> = {
+  slab: '#a2a2a2',
+  wall: '#b3b3b3',
+  f1: '#e3e3e3',
+  f2: '#c2c2c2',
+  f3: '#7c7c7c',
+  soft: '#f2f2f2',
+  stair: '#bcbcbc',
+  rail: '#8a8a8a',
+};
+const ROOF_TONE = '#8a8a8a';
 
-// Matte dollhouse cutaway in one grey family (Nick's Mossline look): opaque floor, back and side walls, open front and top.
-const SLAB = 0.12, WALL_H = 0.95, WALL_T = 0.06, OPEN_GAP = 0.75;
-const G = { slab: "#5E5E5E", wall: "#585858", part: "#626262", furn: "#7A7A7A", soft: "#E8E8E8", stair: "#7C7C7C", roof: "#8C8C8C" };
-const FLOOR_TONE: Record<Kind, string> = { ...ROOM_COLORS, maid: ROOM_COLORS.bedroom, majlis: ROOM_COLORS.living } as Record<Kind, string>;
-const WEIGHT: Record<Kind, number> = { living: 3, kitchen: 2, bedroom: 2.2, bathroom: 1.1, hall: 1, maid: 1.2, majlis: 2.4 };
+/** Camera framing. Azimuth and elevation are in radians; 0 azimuth looks straight at the open front. */
+const VIEW = { az: 0.42, el: 0.37, sway: 0.26, swaySpeed: 0.2, fov: 30 };
 
-export function planFloors(h: Home): FloorPlan[] {
-  const side = Math.sqrt(h.sqft / h.floors) / 12;
-  const W = Math.max(2.4, side * 1.45), D = Math.max(1.25, side / 1.45);
-  const lists: Kind[][] = Array.from({ length: h.floors }, () => []);
-  lists[0].push("living", "kitchen");
-  if (h.rooms?.includes("majlis")) lists[0].push("majlis");
-  if (h.rooms?.includes("maid")) lists[0].push("maid");
-  const up = h.floors - 1;
-  for (let i = 0; i < h.bedrooms; i++) lists[up ? 1 + (i % up) : 0].push("bedroom");
-  const full = Math.floor(h.bathrooms) + (h.bathrooms % 1 ? 1 : 0);
-  for (let i = 0; i < full; i++) lists[h.floors - 1 - (i % h.floors)].push("bathroom");
-  for (let f = 1; f < h.floors; f++) if (!lists[f].some((k) => k !== "bathroom")) lists[f].unshift("living");
-  return lists.map((items, f) => {
-    const all: Kind[] = [...items, "hall"]; // hall with stairs at the right end
-    const tot = all.reduce((s, k) => s + WEIGHT[k], 0);
-    let x = -W / 2; const cnt: Record<string, number> = {};
-    const rooms = all.map((k) => { const w = (W * WEIGHT[k]) / tot; cnt[k] = (cnt[k] ?? 0) + 1; const r = { id: `${f}-${k}-${cnt[k]}`, kind: k, x: x + w / 2, w }; x += w; return r; });
-    return { W, D, rooms };
+export type Insets = { top: number; bottom: number };
+
+export interface HouseCanvasProps extends HouseInput {
+  /** Pixels at the top and bottom of the canvas covered by UI. A function is read every frame. */
+  insets?: Insets | (() => Insets);
+  /** Slow idle sway around the front three quarter view. */
+  autoRotate?: boolean;
+  /** Scale on top of the automatic fit. Above 1 brings the house closer. */
+  zoom?: number;
+  className?: string;
+  style?: CSSProperties;
+}
+
+type Spring = [number, number];
+const spring = (x: number, v: number, t: number, k: number, c: number, dt: number): Spring => {
+  const nv = v + (k * (t - x) - c * v) * dt;
+  return [x + nv * dt, nv];
+};
+const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+
+function useReducedMotion() {
+  const ref = useRef(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    ref.current = mq.matches;
+    const on = () => {
+      ref.current = mq.matches;
+    };
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return ref;
+}
+
+/* ------------------------------------------------------------------ */
+/* House: diffed, keyed meshes                                          */
+/* ------------------------------------------------------------------ */
+
+interface Live {
+  mesh: THREE.Mesh;
+  m: Motion;
+  cur: number[];
+  vel: number[];
+  tgt: number[];
+  a: number;
+  av: number;
+  aT: 0 | 1;
+  delay: number;
+}
+
+export function House({ layout }: { layout: HouseLayout }) {
+  const group = useRef<THREE.Group>(null);
+  const roofMesh = useRef<THREE.Mesh>(null);
+  const live = useRef(new Map<string, Live>());
+  const first = useRef(true);
+  const lastFloors = useRef(0);
+  const reduced = useReducedMotion();
+  const roof = useRef({ cur: null as number[] | null, vel: [0, 0, 0, 0], a: 0, av: 0, delay: 0, key: '' });
+
+  const shared = useMemo(() => {
+    const wedge = new THREE.BufferGeometry();
+    wedge.setAttribute('position', new THREE.Float32BufferAttribute(wedgePositions(), 3));
+    wedge.computeVertexNormals();
+    const geos: Record<Shape, THREE.BufferGeometry> = {
+      box: new THREE.BoxGeometry(1, 1, 1),
+      wedge,
+      cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 28),
+      sph: new THREE.SphereGeometry(0.5, 24, 16),
+    };
+    const mats = {} as Record<Tone, THREE.MeshStandardMaterial>;
+    (Object.keys(TONES) as Tone[]).forEach((k) => {
+      mats[k] = new THREE.MeshStandardMaterial({ color: TONES[k], roughness: 0.94, metalness: 0 });
+    });
+    const roofPos = new Float32Array(ROOF_VERTS * 3);
+    const roofGeo = new THREE.BufferGeometry();
+    roofGeo.setAttribute('position', new THREE.BufferAttribute(roofPos, 3));
+    const roofMat = new THREE.MeshStandardMaterial({ color: ROOF_TONE, roughness: 0.9, metalness: 0, flatShading: true });
+    return { geos, mats, roofPos, roofGeo, roofMat };
+  }, []);
+
+  useEffect(
+    () => () => {
+      Object.values(shared.geos).forEach((g) => g.dispose());
+      Object.values(shared.mats).forEach((m) => m.dispose());
+      shared.roofGeo.dispose();
+      shared.roofMat.dispose();
+    },
+    [shared],
+  );
+
+  // Diff the new layout against what is on screen.
+  useEffect(() => {
+    const g = group.current;
+    if (!g) return;
+    const map = live.current;
+    const red = reduced.current;
+    const seen = new Set<string>();
+    const floorsAdded = layout.F > lastFloors.current && !first.current;
+    let seq = 0;
+    layout.items.forEach((it, idx) => {
+      seen.add(it.k);
+      const tgt = [it.x, it.y, it.z, it.w, it.h, it.d];
+      const o = map.get(it.k);
+      if (!o) {
+        const mesh = new THREE.Mesh(shared.geos[it.s], shared.mats[it.c]);
+        mesh.castShadow = it.c !== 'f3' || it.h > 0.05;
+        mesh.receiveShadow = true;
+        mesh.visible = false;
+        g.add(mesh);
+        const delay = first.current
+          ? 0.25 + it.f * 0.26 + (it.m === 'pop' ? 0.34 : 0) + idx * 0.0016
+          : 0.03 + (it.m === 'pop' ? 0.08 : 0) + (floorsAdded ? Math.max(0, it.f - lastFloors.current + 1) * 0.07 : 0) + Math.min(0.3, seq++ * 0.006);
+        map.set(it.k, { mesh, m: it.m, cur: tgt.slice(), vel: [0, 0, 0, 0, 0, 0], tgt, a: red ? 1 : 0, av: 0, aT: 1, delay: red ? 0 : delay });
+      } else {
+        o.tgt = tgt;
+        if (red) {
+          o.cur = tgt.slice();
+          o.a = 1;
+        }
+        if (o.aT === 0) {
+          o.aT = 1;
+          o.delay = 0;
+        }
+        o.mesh.material = shared.mats[it.c];
+        o.mesh.geometry = shared.geos[it.s];
+      }
+    });
+    map.forEach((o, k) => {
+      if (seen.has(k)) return;
+      if (red) {
+        g.remove(o.mesh);
+        map.delete(k);
+      } else {
+        o.aT = 0;
+        o.delay = 0;
+      }
+    });
+    const r = layout.roof;
+    const R = roof.current;
+    if (!R.cur) {
+      R.cur = red ? [r.y, r.w, r.d, r.h] : [r.y + 3.2, r.w, r.d, r.h];
+      R.a = red ? 1 : 0;
+      R.delay = red ? 0 : 0.25 + layout.F * 0.26 + 0.2;
+    } else if (red) {
+      R.cur = [r.y, r.w, r.d, r.h];
+    }
+    lastFloors.current = layout.F;
+    first.current = false;
+  }, [layout, shared, reduced]);
+
+  useFrame((_, delta) => {
+    const g = group.current;
+    if (!g) return;
+    const total = Math.min(0.05, delta);
+    const steps = total > 0.02 ? 2 : 1;
+    const dt = total / steps;
+    const map = live.current;
+    const R = roof.current;
+    const r = layout.roof;
+    for (let s = 0; s < steps; s++) {
+      map.forEach((o, k) => {
+        if (o.delay > 0) {
+          o.delay -= dt;
+          return;
+        }
+        for (let i = 0; i < 6; i++) [o.cur[i], o.vel[i]] = spring(o.cur[i], o.vel[i], o.tgt[i], 150, 23, dt);
+        if (o.aT === 0) [o.a, o.av] = spring(o.a, o.av, 0, 260, 34, dt);
+        else if (o.m === 'pop') [o.a, o.av] = spring(o.a, o.av, 1, 190, 15.5, dt);
+        else [o.a, o.av] = spring(o.a, o.av, 1, 120, 22, dt);
+        if (o.aT === 0 && o.a < 0.02) {
+          g.remove(o.mesh);
+          map.delete(k);
+        }
+      });
+      if (R.cur) {
+        if (R.delay > 0) R.delay -= dt;
+        else {
+          const t = [r.y, r.w, r.d, r.h];
+          for (let i = 0; i < 4; i++) [R.cur[i], R.vel[i]] = spring(R.cur[i], R.vel[i], t[i], i === 0 ? 90 : 150, i === 0 ? 16 : 23, dt);
+          [R.a, R.av] = spring(R.a, R.av, 1, 120, 20, dt);
+        }
+      }
+    }
+
+    map.forEach((o) => {
+      const a = Math.max(0, o.a);
+      const m = o.mesh;
+      if (a < 0.002) {
+        m.visible = false;
+        return;
+      }
+      m.visible = true;
+      let sx = a;
+      let sy = a;
+      let sz = a;
+      if (o.m === 'rise') {
+        sx = sz = 1;
+        sy = Math.min(a, 1.02);
+      } else if (o.m === 'slab') {
+        sx = sz = 0.82 + 0.18 * Math.min(a, 1);
+        sy = Math.min(a, 1);
+      }
+      m.scale.set(Math.max(1e-4, o.cur[3] * sx), Math.max(1e-4, o.cur[4] * sy), Math.max(1e-4, o.cur[5] * sz));
+      m.position.set(o.cur[0], o.cur[1] + (o.cur[4] * sy) / 2, o.cur[2]);
+    });
+
+    const rm = roofMesh.current;
+    if (rm && R.cur) {
+      const [ry, rw, rd, rh] = R.cur;
+      const long = rw >= rd;
+      const key = `${rw.toFixed(3)}|${rd.toFixed(3)}|${rh.toFixed(3)}`;
+      if (key !== R.key) {
+        writeRoof(shared.roofPos, long ? rw : rd, long ? rd : rw, rh);
+        shared.roofGeo.attributes.position.needsUpdate = true;
+        shared.roofGeo.computeVertexNormals();
+        shared.roofGeo.computeBoundingSphere();
+        R.key = key;
+      }
+      const ra = clamp(R.a, 0, 1.02);
+      rm.visible = ra > 0.002;
+      rm.rotation.y = long ? 0 : Math.PI / 2;
+      rm.position.y = ry;
+      rm.scale.setScalar(Math.max(1e-4, 0.85 + 0.15 * ra));
+    }
   });
+
+  return (
+    <group ref={group}>
+      <mesh ref={roofMesh} geometry={shared.roofGeo} material={shared.roofMat} visible={false} />
+    </group>
+  );
 }
 
-function useSpring(target: number, init: number, stiff = 120, damp = 16) {
-  const s = useRef({ x: init, v: 0 });
-  return (dt: number) => { const st = s.current, t = Math.min(dt, 1 / 30); st.v += ((target - st.x) * stiff - st.v * damp) * t; st.x += st.v * t; return st.x; };
-}
+/* ------------------------------------------------------------------ */
+/* Ground: soft grey ellipse plus a shadow catcher                      */
+/* ------------------------------------------------------------------ */
 
-const M = ({ c, e = 0 }: { c: string; e?: number }) => <meshStandardMaterial color={c} roughness={0.95} metalness={0} emissive="#FFFFFF" emissiveIntensity={e} />;
-function B({ p, s, c, e }: { p: [number, number, number]; s: [number, number, number]; c: string; e?: number }) {
-  return <mesh position={p} castShadow receiveShadow><boxGeometry args={s} /><M c={c} e={e} /></mesh>;
-}
-
-function Furniture({ kind, w, d, extras, empty, top }: { kind: Kind; w: number; d: number; extras: string[]; empty: boolean; top: boolean }) {
-  if (kind === "hall") {
-    if (top) return null;
-    const n = 8, run = Math.min(0.42, w * 0.7), rise = WALL_H + SLAB, depth = (d * 0.85) / n;
-    return <group position={[w / 2 - run / 2 - WALL_T, 0, d * 0.42]}>{Array.from({ length: n }, (_, i) => {
-      const hh = (rise * (i + 1)) / n; return <B key={i} p={[0, hh / 2, -depth * (i + 0.5)]} s={[run, hh, depth * 0.98]} c={G.stair} />;
-    })}</group>;
-  }
-  if (empty) return null;
-  const k: React.ReactNode[] = [];
-  const bz = -d / 2 + WALL_T;
-  if (kind === "bedroom" || kind === "maid") {
-    const bw = Math.min(w * 0.6, kind === "maid" ? 0.32 : 0.5), bl = Math.min(d * 0.55, 0.62);
-    k.push(<B key="bed" p={[0, 0.07, bz + bl / 2 + 0.04]} s={[bw, 0.14, bl]} c={G.soft} />,
-      <B key="pil" p={[0, 0.17, bz + 0.1]} s={[bw * 0.85, 0.06, 0.1]} c="#FFFFFF" />,
-      <B key="hb" p={[0, 0.16, bz + 0.02]} s={[bw, 0.32, 0.04]} c={G.furn} />);
-  }
-  if (kind === "living" || kind === "majlis") {
-    const sw = Math.min(w * 0.7, 1.1);
-    k.push(<B key="sofa" p={[0, 0.08, bz + 0.16]} s={[sw, 0.16, 0.26]} c={extras.includes("sofa") ? G.soft : G.furn} />,
-      <B key="back" p={[0, 0.2, bz + 0.05]} s={[sw, 0.24, 0.07]} c={extras.includes("sofa") ? G.soft : G.furn} />,
-      <B key="tbl" p={[0, 0.06, bz + 0.6]} s={[sw * 0.4, 0.12, 0.2]} c={G.furn} />);
-    if (extras.includes("carpet")) k.push(<B key="rug" p={[0, 0.006, bz + 0.55]} s={[sw * 0.75, 0.012, 0.5]} c="#D0D0D0" />);
-    if (kind === "majlis") k.push(<B key="side" p={[-w / 2 + 0.16, 0.08, 0]} s={[0.24, 0.16, d * 0.6]} c={G.furn} />);
-  }
-  if (kind === "kitchen") {
-    k.push(<B key="ctr" p={[0, 0.2, bz + 0.13]} s={[w * 0.85, 0.4, 0.24]} c={G.furn} />,
-      <B key="isl" p={[0, 0.17, bz + 0.62]} s={[w * 0.45, 0.34, 0.24]} c={G.furn} />);
-    if (extras.includes("oven")) k.push(<B key="ov" p={[-w * 0.15, 0.17, bz + 0.26]} s={[0.2, 0.26, 0.02]} c="#FFFFFF" />);
-    if (extras.includes("fridge")) k.push(<B key="fr" p={[w * 0.32, 0.38, bz + 0.15]} s={[0.22, 0.76, 0.26]} c="#F2F2F2" />);
-  }
-  if (kind === "bathroom") {
-    k.push(<B key="tub" p={[0, 0.1, bz + 0.17]} s={[Math.min(w * 0.7, 0.55), 0.2, 0.28]} c="#F0F0F0" />,
-      <B key="sink" p={[w * 0.25, 0.2, d * 0.15]} s={[0.14, 0.4, 0.14]} c={G.furn} />);
-  }
-  return <>{k}</>;
-}
-
-function RoomView({ r, D, focus, extras, type, top }: { r: Room; D: number; focus: Focus | null; extras: string[]; type: string; top: boolean }) {
-  const ref = useRef<THREE.Group>(null), mat = useRef<THREE.MeshStandardMaterial>(null), glow = useRef(0), last = useRef(-1);
-  const hit = focus && (focus.kind === r.kind || focus.kind === "all" || (focus.kind === "bedroom" && r.kind === "maid")) ? focus.n : -1;
-  useEffect(() => { if (hit >= 0 && hit !== last.current) { glow.current = 1; } last.current = hit; }, [hit]);
-  const pop = useSpring(1, 0.001, 170, 13), px = useSpring(r.x, r.x), sw = useSpring(r.w, r.w);
-  useFrame((_, dt) => {
-    const g = ref.current; if (!g) return; const s = Math.max(0.001, pop(dt));
-    g.position.x = px(dt); g.scale.set(s * (sw(dt) / r.w), s, s);
-    glow.current = Math.max(0, glow.current - dt * 0.8);
-    if (mat.current) mat.current.emissiveIntensity = glow.current * 0.55 + (type === "deep" ? 0.12 : 0);
+export function HouseGround({ layout }: { layout: HouseLayout }) {
+  const disc = useRef<THREE.Mesh>(null);
+  const catcher = useRef<THREE.Mesh>(null);
+  const tex = useMemo(() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 256;
+    const g = c.getContext('2d') as CanvasRenderingContext2D;
+    const gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+    gr.addColorStop(0, 'rgba(255,255,255,0.085)');
+    gr.addColorStop(0.6, 'rgba(255,255,255,0.055)');
+    gr.addColorStop(0.85, 'rgba(255,255,255,0.02)');
+    gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 256, 256);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, []);
+  useEffect(() => () => tex.dispose(), [tex]);
+  useFrame((_, delta) => {
+    const k = 1 - Math.exp(-Math.min(delta, 0.05) * 8);
+    const gw = (layout.W + 4) * 1.55;
+    const gd = (layout.D + 4) * 1.75;
+    if (disc.current) {
+      const s = disc.current.scale;
+      s.set(s.x + (gw - s.x) * k, s.y + (gd - s.y) * k, 1);
+    }
+    if (catcher.current) {
+      const s = catcher.current.scale;
+      s.set(s.x + (gw * 1.3 - s.x) * k, s.y + (gd * 1.3 - s.y) * k, 1);
+    }
   });
   return (
-    <group ref={ref}>
-      <mesh position={[0, 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[r.w - 0.03, D - 0.03]} />
-        <meshStandardMaterial ref={mat} color={FLOOR_TONE[r.kind]} roughness={1} emissive="#FFFFFF" emissiveIntensity={0} />
+    <>
+      <mesh ref={disc} rotation-x={-Math.PI / 2} position-y={-0.01} renderOrder={-2}>
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial map={tex} transparent depthWrite={false} />
       </mesh>
-      {/* partition wall on the left side of every room except the first */}
-      <B p={[-r.w / 2, WALL_H * 0.4, 0]} s={[0.035, WALL_H * 0.8, D - 0.1]} c={G.part} />
-      <Furniture kind={r.kind} w={r.w} d={D} extras={extras} empty={type === "moveout"} top={top} />
-    </group>
+      <mesh ref={catcher} rotation-x={-Math.PI / 2} position-y={-0.005} renderOrder={-1} receiveShadow>
+        <planeGeometry args={[1, 1]} />
+        <shadowMaterial opacity={0.4} depthWrite={false} />
+      </mesh>
+    </>
   );
 }
 
-function Floor({ plan, y, top, focus, extras, balcony, windows, type }: { plan: FloorPlan; y: number; top: boolean; focus: Focus | null; extras: string[]; balcony: boolean; windows: boolean; type: string }) {
-  const ref = useRef<THREE.Group>(null);
-  const py = useSpring(y, y + 1.4, 90, 15), sw = useSpring(plan.W, plan.W, 140, 18), sd = useSpring(plan.D, plan.D, 140, 18);
-  const slab = useRef<THREE.Mesh>(null), back = useRef<THREE.Mesh>(null), lw = useRef<THREE.Mesh>(null), rw = useRef<THREE.Mesh>(null), inner = useRef<THREE.Group>(null), bal = useRef<THREE.Group>(null);
-  useFrame((_, dt) => {
-    if (ref.current) ref.current.position.y = py(dt);
-    const w = sw(dt), d = sd(dt), sx = w / plan.W, sz = d / plan.D;
-    slab.current?.scale.set(w, 1, d); back.current?.scale.set(w, 1, 1); back.current?.position.setZ(-d / 2 + WALL_T / 2);
-    lw.current?.scale.set(1, 1, d); lw.current?.position.setX(-w / 2 + WALL_T / 2); rw.current?.scale.set(1, 1, d); rw.current?.position.setX(w / 2 - WALL_T / 2);
-    inner.current?.scale.set(sx, 1, sz);
-    bal.current?.position.set(-w * 0.1, -SLAB / 2, d / 2 + 0.25);
-  });
-  const { W, D } = plan;
+/* ------------------------------------------------------------------ */
+/* Lights: follow the house so shadows stay crisp at every size         */
+/* ------------------------------------------------------------------ */
+
+// three r155+ uses physical light units; multiplying by PI keeps the look of the HTML demo.
+const PI = Math.PI;
+
+export function HouseLights({ layout, shadowMapSize = 2048 }: { layout: HouseLayout; shadowMapSize?: number }) {
+  const sun = useRef<THREE.DirectionalLight>(null);
+  const fill = useRef<THREE.DirectionalLight>(null);
+  const scene = useThree((s) => s.scene);
+  useEffect(() => {
+    const l = sun.current;
+    const f = fill.current;
+    if (!l || !f) return;
+    scene.add(l.target);
+    l.position.set(layout.W * 0.4 + 7, layout.height + 22, layout.D * 0.6 + 12);
+    l.target.position.set(0, layout.height * 0.35, 0);
+    l.target.updateMatrixWorld();
+    const s = Math.max(layout.W, layout.D, layout.height) * 0.85 + 3;
+    const sc = l.shadow.camera;
+    sc.left = -s;
+    sc.right = s;
+    sc.top = s;
+    sc.bottom = -s;
+    sc.near = 1;
+    sc.far = 120;
+    sc.updateProjectionMatrix();
+    f.position.set(-layout.W - 10, layout.height * 0.7 + 6, layout.D * 0.4 + 6);
+    return () => {
+      scene.remove(l.target);
+    };
+  }, [layout, scene]);
   return (
-    <group ref={ref}>
-      <mesh ref={slab} position={[0, -SLAB / 2, 0]} receiveShadow castShadow><boxGeometry args={[1, SLAB, 1]} /><M c={G.slab} /></mesh>
-      <mesh ref={back} position={[0, WALL_H / 2, -D / 2]} castShadow receiveShadow><boxGeometry args={[1, WALL_H, WALL_T]} /><M c={G.wall} /></mesh>
-      <mesh ref={lw} position={[-W / 2, WALL_H / 2, 0]} castShadow receiveShadow><boxGeometry args={[WALL_T, WALL_H, 1]} /><M c={G.wall} /></mesh>
-      <mesh ref={rw} position={[W / 2, WALL_H / 2, 0]} castShadow receiveShadow><boxGeometry args={[WALL_T, WALL_H, 1]} /><M c={G.wall} /></mesh>
-      <group ref={inner}>
-        {plan.rooms.map((r, i) => i === 0 ? <group key={r.id}><RoomView r={r} D={D} focus={focus} extras={extras} type={type} top={top} /></group> : <RoomView key={r.id} r={r} D={D} focus={focus} extras={extras} type={type} top={top} />)}
-        {windows && type !== "moveout" && [-0.3, 0.05].map((f) => <B key={f} p={[W * f, WALL_H * 0.55, -D / 2 + WALL_T + 0.005]} s={[W * 0.16, WALL_H * 0.38, 0.01]} c="#BDBDBD" />)}
-      </group>
-      {balcony && <group ref={bal}><B p={[0, 0, 0]} s={[W * 0.4, SLAB, 0.5]} c={G.slab} /><B p={[0, 0.14, 0.23]} s={[W * 0.4, 0.22, 0.03]} c={G.wall} /></group>}
-    </group>
+    <>
+      <hemisphereLight args={['#ffffff', '#262626', 0.78 * PI]} />
+      <directionalLight
+        ref={sun}
+        intensity={0.62 * PI}
+        castShadow
+        shadow-mapSize-width={shadowMapSize}
+        shadow-mapSize-height={shadowMapSize}
+        shadow-bias={-0.0006}
+        shadow-normalBias={0.035}
+      />
+      <directionalLight ref={fill} intensity={0.22 * PI} />
+    </>
   );
 }
 
-function hipRoof(W: number, D: number, h: number) {
-  const r = Math.max(0, W / 2 - D / 2), x = W / 2, z = D / 2;
-  const v = [[-x, 0, -z], [x, 0, -z], [x, 0, z], [-x, 0, z], [-r, h, 0], [r, h, 0]];
-  const f = [[3, 2, 5], [3, 5, 4], [1, 0, 4], [1, 4, 5], [2, 1, 5], [0, 3, 4], [0, 1, 2], [0, 2, 3]];
-  const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(f.flatMap((t) => t.flatMap((i) => v[i])), 3));
-  g.computeVertexNormals(); return g;
-}
+/* ------------------------------------------------------------------ */
+/* Camera: idle sway, drag to orbit, smooth refit inside the insets     */
+/* ------------------------------------------------------------------ */
 
-function Roof({ W, D, y, show, ghost }: { W: number; D: number; y: number; show: boolean; ghost: boolean }) {
-  const ref = useRef<THREE.Group>(null), rm = useRef<THREE.MeshStandardMaterial>(null);
-  const py = useSpring(y, y + 1, 90, 15), sc = useSpring(show ? 1 : 0, 0.001, 140, 16), op = useSpring(ghost ? 0.12 : 1, 1, 80, 16);
-  const geo = useMemo(() => hipRoof(W + 0.2, D + 0.2, D * 0.5), [W, D]);
-  useFrame((_, dt) => {
-    const g = ref.current; if (!g) return; const s = Math.max(0.001, sc(dt));
-    g.position.y = py(dt); g.scale.setScalar(s); g.visible = s > 0.02;
-    if (rm.current) { const o = op(dt); rm.current.opacity = o; rm.current.depthWrite = o > 0.95; }
-  });
-  return <group ref={ref}><mesh geometry={geo} castShadow><meshStandardMaterial ref={rm} color={G.roof} roughness={0.9} flatShading transparent side={THREE.DoubleSide} /></mesh></group>;
-}
+export function CameraRig({ layout, sqft, insets, autoRotate = true, zoom = 1 }: { layout: HouseLayout; sqft: number; insets?: Insets | (() => Insets); autoRotate?: boolean; zoom?: number }) {
+  const { camera, gl, size } = useThree();
+  const reduced = useReducedMotion();
+  const st = useRef({ az: VIEW.az, el: VIEW.el, center: VIEW.az, phase: 0, dist: NaN, dv: 0, ty: NaN, tv: 0, drag: null as null | { id: number; x: number; y: number } });
 
-/** Keeps the whole scene (roof to ground ellipse) inside the canvas with margin, for any aspect. */
-function CameraFit({ w, h }: { w: number; h: number }) {
-  const { camera, size, controls } = useThree();
-  const cur = useRef(0);
-  useFrame((_, dt) => {
-    const cam = camera as THREE.PerspectiveCamera, t = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)), aspect = size.width / size.height;
-    const want = Math.max(h / (2 * t) * 1.2, w / (2 * t * aspect) * 1.08) + w * 0.3;
-    const c = controls as unknown as { minDistance: number; maxDistance: number; getDistance?: () => number } | null;
-    if (!cur.current) cur.current = want;
-    const prev = cur.current; cur.current += (want - cur.current) * (1 - Math.exp(-dt * 4));
-    const d = cam.position.length() * (cur.current / prev);
-    if (c) { c.minDistance = cur.current * 0.7; c.maxDistance = cur.current * 1.5; }
-    cam.position.setLength(Math.min(Math.max(d, cur.current * 0.7), cur.current * 1.5));
+  useEffect(() => {
+    const el = gl.domElement;
+    el.style.touchAction = 'none';
+    el.style.cursor = 'grab';
+    const s = st.current;
+    const down = (e: PointerEvent) => {
+      s.drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      el.setPointerCapture(e.pointerId);
+      el.style.cursor = 'grabbing';
+    };
+    const move = (e: PointerEvent) => {
+      if (!s.drag || s.drag.id !== e.pointerId) return;
+      s.az -= (e.clientX - s.drag.x) * 0.0068;
+      s.el = clamp(s.el + (e.clientY - s.drag.y) * 0.0045, 0.05, 0.95);
+      s.drag.x = e.clientX;
+      s.drag.y = e.clientY;
+    };
+    const up = (e: PointerEvent) => {
+      if (!s.drag || s.drag.id !== e.pointerId) return;
+      s.drag = null;
+      s.center = s.az - VIEW.sway * Math.sin(s.phase);
+      el.style.cursor = 'grab';
+    };
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+    return () => {
+      el.removeEventListener('pointerdown', down);
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+    };
+  }, [gl]);
+
+  useFrame((_, delta) => {
+    const s = st.current;
+    const cam = camera as THREE.PerspectiveCamera;
+    const dt = Math.min(0.05, delta);
+    const red = reduced.current;
+    if (!s.drag && autoRotate && !red) {
+      s.phase += dt * VIEW.swaySpeed;
+      s.center += (VIEW.az - s.center) * (1 - Math.exp(-dt * 0.1));
+      s.az = s.center + VIEW.sway * Math.sin(s.phase);
+      s.el += (VIEW.el - s.el) * (1 - Math.exp(-dt * 0.4));
+    }
+
+    // Centre the house in the part of the canvas that is not covered by UI.
+    const cw = size.width;
+    const ch = size.height;
+    const ins = typeof insets === 'function' ? insets() : insets ?? { top: 0, bottom: 0 };
+    const top = clamp(ins.top, 0, ch);
+    let bottom = clamp(ch - ins.bottom, 0, ch);
+    if (bottom - top < ch * 0.26) bottom = top + ch * 0.26;
+    const yc = (top + bottom) / 2;
+    cam.fov = VIEW.fov;
+    cam.setViewOffset(cw, ch, 0, ch / 2 - yc, cw, ch);
+
+    // Fit the bounding sphere, leaving a little more air around small homes.
+    const half = THREE.MathUtils.degToRad(VIEW.fov / 2);
+    const tanV = Math.tan(half) * ((bottom - top) / ch);
+    const tanH = Math.tan(half) * ((cw - 32) / ch);
+    const ang = Math.atan(Math.min(tanV, tanH));
+    const fit0 = (layout as HouseLayout & { fit?: { w: number; d: number } }).fit;
+    const rad = 0.5 * Math.hypot(Math.max(layout.roof.w, fit0?.w ?? 0), Math.max(layout.roof.d, fit0?.d ?? 0), layout.height);
+    const t = clamp((sqft - 500) / 5500, 0, 1);
+    const fit = (1.1 + 0.2 * Math.sqrt(t)) * zoom;
+    const targetDist = rad / Math.sin(ang) / fit;
+    const targetY = layout.height * 0.47;
+    if (Number.isNaN(s.dist) || red) {
+      s.dist = targetDist;
+      s.ty = targetY;
+    } else {
+      const n = dt > 0.02 ? 3 : 1;
+      for (let i = 0; i < n; i++) {
+        [s.dist, s.dv] = spring(s.dist, s.dv, targetDist, 26, 10, dt / n);
+        [s.ty, s.tv] = spring(s.ty, s.tv, targetY, 26, 10, dt / n);
+      }
+    }
+    const ce = Math.cos(s.el);
+    cam.position.set(Math.sin(s.az) * ce * s.dist, s.ty + Math.sin(s.el) * s.dist, Math.cos(s.az) * ce * s.dist);
+    cam.lookAt(0, s.ty, 0);
+    cam.updateProjectionMatrix();
   });
   return null;
 }
 
-function Fit({ scale, y, spin, glide, children }: { scale: number; y: number; spin: boolean; glide: { y: number; n: number } | null; children: React.ReactNode }) {
-  const ref = useRef<THREE.Group>(null), until = useRef(0), seen = useRef(-1), st = useRef({ x: y, v: 0 });
-  useEffect(() => { if (glide && glide.n !== seen.current) { seen.current = glide.n; until.current = performance.now() + 1800; } }, [glide]);
-  const s = useSpring(scale, scale, 60, 14), rot = useRef(0);
-  useFrame((_, dt) => {
-    const g = ref.current; if (!g) return; g.scale.setScalar(s(dt));
-    const t = glide && performance.now() < until.current ? -glide.y : y;
-    const k = Math.min(dt, 1 / 30), p = st.current; p.v += ((t - p.x) * 40 - p.v * 12) * k; p.x += p.v * k; g.position.y = p.x;
-    if (spin) { rot.current += dt * 0.25; g.rotation.y = Math.sin(rot.current) * 0.35; }
-  });
-  return <group ref={ref}>{children}</group>;
-}
+/* ------------------------------------------------------------------ */
+/* Drop in canvas                                                       */
+/* ------------------------------------------------------------------ */
 
-export default function House({ home, openFloors, roof, focus = null }: { home: Home; openFloors: boolean; roof: boolean; focus?: Focus | null }) {
-  const extras = home.extras ?? [];
-  const floors = useMemo(() => planFloors(home), [home]);
-  const [reduce, setReduce] = useState(false), [held, setHeld] = useState(false);
-  useEffect(() => {
-    const m = window.matchMedia("(prefers-reduced-motion: reduce)"); setReduce(m.matches);
-    const f = () => setReduce(m.matches); m.addEventListener("change", f); return () => m.removeEventListener("change", f);
-  }, []);
-  const step = WALL_H + SLAB + (openFloors ? OPEN_GAP : 0);
-  const prevFloors = useRef(home.floors), glideN = useRef(0);
-  const glideFloor = useMemo(() => {
-    let f = -1;
-    if (home.floors !== prevFloors.current) { f = home.floors - 1; prevFloors.current = home.floors; }
-    else if (focus) { const k = focus.kind; f = k === "bedroom" ? (home.floors > 1 ? 1 : 0) : k === "bathroom" ? home.floors - 1 : ["kitchen", "living", "majlis", "maid"].includes(k) ? 0 : -1; }
-    return f;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [home.floors, focus?.n]);
-  const topY = (home.floors - 1) * step + WALL_H;
-  const roofY = topY + (home.floors === 1 ? 1.3 : openFloors ? 0.55 : 0.02);
-  const height = roofY + (roof ? floors[0].D * 0.5 : 0);
-  const fit = 1;
-  const glide = useMemo(() => (glideFloor < 0 || reduce || home.floors === 1 ? null : { y: (glideFloor * step + WALL_H / 2) * fit - 0.2, n: ++glideN.current }),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  [glideFloor, focus?.n, home.floors, reduce]);
-  const R = Math.max(floors[0].W, floors[0].D) * 0.85 + 0.6;
+export default function HouseCanvas({ sqft, floors, bedrooms, bathrooms, kind, maid, pool, balcony, insets, autoRotate = true, zoom = 1, className, style }: HouseCanvasProps) {
+  const layout = useMemo(() => computeLayout({ sqft, floors, bedrooms, bathrooms, kind, maid, pool, balcony }), [sqft, floors, bedrooms, bathrooms, kind, maid, pool, balcony]);
   return (
-    <Canvas onPointerDown={() => setHeld(true)} camera={{ position: [2.2, 2.4, 9.2], fov: 30 }} resize={{ debounce: 0 }} dpr={[1, 1.75]} shadows gl={{ antialias: true, alpha: true }} aria-label="3D model of your home">
-      <ambientLight intensity={1.1} />
-      <hemisphereLight args={["#FFFFFF", "#3A3A3A", 0.6]} />
-      <directionalLight position={[3, 9, 7]} intensity={1.1} castShadow shadow-mapSize={[1024, 1024]} shadow-camera-left={-6} shadow-camera-right={6} shadow-camera-top={6} shadow-camera-bottom={-6} />
-      <directionalLight position={[-5, 3, 6]} intensity={0.35} />
-      <Fit scale={fit} y={-(height - SLAB) / 2 + 0.25 + R * 0.12} spin={!reduce && !held} glide={glide}>
-        {floors.map((p, i) => <Floor key={i} plan={p} y={i * step} top={i === floors.length - 1} focus={focus} extras={extras}
-          balcony={!!home.rooms?.includes("balcony") && i === floors.length - 1} windows={extras.includes("windows")} type={home.type} />)}
-        <Roof W={floors[0].W} D={floors[0].D} y={roofY} show={roof} ghost={home.floors === 1} />
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -SLAB - 0.01, 0]} scale={[1.25, 1, 1]} receiveShadow>
-          <circleGeometry args={[R * 0.8, 72]} /><meshStandardMaterial color="#4A4A4A" roughness={1} />
-        </mesh>
-        <ContactShadows position={[0, -SLAB, 0]} opacity={0.45} scale={R * 3} blur={2.4} far={2} />
-      </Fit>
-      <CameraFit w={R * 2.1} h={height + 1.2 + R * 0.6} />
-      <OrbitControls makeDefault enablePan={false} enableZoom minPolarAngle={0.9} maxPolarAngle={1.5} minAzimuthAngle={-1.1} maxAzimuthAngle={1.1} enableDamping />
+    <Canvas
+      className={className}
+      style={style}
+      flat
+      shadows="soft"
+      dpr={[1, 2]}
+      gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+      camera={{ fov: VIEW.fov, near: 0.5, far: 600, position: [20, 14, 40] }}
+    >
+      <HouseLights layout={layout} />
+      <HouseGround layout={layout} />
+      <House layout={layout} />
+      <CameraRig layout={layout} sqft={sqft} insets={insets} autoRotate={autoRotate} zoom={zoom} />
     </Canvas>
   );
 }

@@ -1,92 +1,27 @@
 {
   "slug": "saafi",
-  "brand": {
-    "name": "",
-    "tagline": "Home cleaning across the UAE"
-  },
+  "brand": { "en": "", "ar": "", "ur": "" },
   "whatsapp": "971500000000",
   "currency": "AED",
-  "vatRate": 0.05,
-  "sqft": {
-    "min": 500,
-    "max": 6000,
-    "step": 50,
-    "default": 1800
-  },
+  "minimum": 150,
+  "roundTo": 5,
+  "extraFloor": 40,
+  "weeklyDiscount": 0.15,
+  "maidRoom": 45,
   "types": {
-    "standard": {
-      "label": "Standard",
-      "perSqft": 0.12,
-      "hourFactor": 1.0,
-      "blurb": "Dusting, floors, kitchen and bathrooms"
-    },
-    "deep": {
-      "label": "Deep",
-      "perSqft": 0.3,
-      "hourFactor": 2.0,
-      "blurb": "Inside cupboards, grout, behind appliances"
-    },
-    "moveout": {
-      "label": "Move out",
-      "perSqft": 0.35,
-      "hourFactor": 2.2,
-      "blurb": "Empty home, every surface, ready to hand over"
-    }
+    "standard": { "rate": 0.14, "bedroom": 20, "bathroom": 30 },
+    "deep": { "rate": 0.30, "bedroom": 40, "bathroom": 60 },
+    "move": { "rate": 0.36, "bedroom": 45, "bathroom": 70 }
   },
-  "perBedroom": 15,
-  "perBathroom": 25,
-  "perExtraFloor": 60,
-  "sqftPerCleanerHour": 350,
-  "hoursPerBedroom": 0.25,
-  "hoursPerBathroom": 0.5,
-  "hoursPerExtraFloor": 0.5,
-  "maxHoursPerCleaner": 6,
-  "maxCrew": 4,
-  "minHours": 2,
-  "minPrice": 120,
-  "rooms": {
-    "maid": {
-      "label": "Maid's room",
-      "price": 30,
-      "hours": 0.4
-    },
-    "balcony": {
-      "label": "Balcony",
-      "price": 25,
-      "hours": 0.3
-    },
-    "majlis": {
-      "label": "Majlis",
-      "price": 45,
-      "hours": 0.6
-    }
+  "kinds": {
+    "studio":    { "rate": 1.0,  "floors": [1, 1], "beds": [0, 0], "baths": [1, 1], "size": [300, 800],   "base": 450,  "perBed": 0,   "def": { "beds": 0, "baths": 1, "floors": 1 } },
+    "apartment": { "rate": 1.0,  "floors": [1, 1], "beds": [1, 4], "baths": [1, 5], "size": [450, 3500],  "base": 350,  "perBed": 450, "def": { "beds": 2, "baths": 2, "floors": 1 } },
+    "townhouse": { "rate": 1.05, "floors": [2, 3], "beds": [2, 5], "baths": [2, 5], "size": [1200, 5000], "base": 700,  "perBed": 550, "def": { "beds": 3, "baths": 3, "floors": 2 } },
+    "villa":     { "rate": 1.1,  "floors": [2, 3], "beds": [2, 6], "baths": [2, 5], "size": [1800, 9000], "base": 1200, "perBed": 750, "def": { "beds": 4, "baths": 4, "floors": 2 } },
+    "penthouse": { "rate": 1.15, "floors": [1, 2], "beds": [2, 5], "baths": [2, 5], "size": [1500, 7000], "base": 900,  "perBed": 650, "def": { "beds": 3, "baths": 3, "floors": 1 } }
   },
-  "extras": {
-    "sofa": {
-      "label": "Sofa",
-      "price": 60,
-      "hours": 0.5
-    },
-    "carpet": {
-      "label": "Carpet",
-      "price": 50,
-      "hours": 0.5
-    },
-    "windows": {
-      "label": "Windows",
-      "price": 70,
-      "hours": 0.8
-    },
-    "oven": {
-      "label": "Oven",
-      "price": 45,
-      "hours": 0.5
-    },
-    "fridge": {
-      "label": "Fridge",
-      "price": 35,
-      "hours": 0.4
-    }
-  },
-  "weeklyDiscount": 0.15
+  "extras": { "oven": 90, "fridge": 70, "windows": 150, "balcony": 80, "laundry": 60, "pool": 120 },
+  "extrasFor": { "pool": ["villa"], "balcony": ["apartment", "townhouse", "villa", "penthouse", "studio"] },
+  "defaults": { "kind": "apartment", "type": "standard" },
+  "areas": ["Dubai Marina", "Jumeirah Village Circle", "Downtown Dubai", "Business Bay", "Dubai Hills Estate", "Arabian Ranches", "Al Barsha", "Mirdif", "Jumeirah Lake Towers", "Palm Jumeirah", "Al Reem Island", "Khalifa City", "Al Nahda, Sharjah", "Al Majaz, Sharjah"]
 }
