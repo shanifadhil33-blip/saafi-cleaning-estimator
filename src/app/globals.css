@@ -195,3 +195,19 @@ input[type=range]::-moz-range-progress{background:#8A8A8A}input[type=range]::-mo
  .chip{min-height:44px}
 }
 @media (max-width:1023px){.seg button{height:44px}}
+
+input[type=range]{touch-action:none}
+@media (min-width:1024px){
+ .sheet-body{display:flex;flex-direction:column;grid-column:1;grid-row:1 / span 2;position:sticky;top:16px;height:calc(100vh - 32px);min-height:560px}
+ .sheet-body .controls{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#333 transparent}
+ .sheet-body .summary{flex:none;padding:14px 4px 0}
+ .sheet-body .total{font-size:48px;margin:6px 0 4px}.sheet-body .lines{margin:12px 0 14px;gap:6px}.sheet-body .lines li{font-size:14px}.sheet-body .note{margin-top:6px}
+ .model{top:16px}.canvas{height:calc(100vh - 32px)}
+}
+@media (min-width:1024px) and (min-height:700px){
+ .page{height:100vh;display:flex;flex-direction:column;padding-bottom:20px}
+ .layout{flex:1;min-height:0;grid-template-rows:minmax(0,1fr)}
+ .sheet-body{position:static;height:100%;min-height:0;grid-row:1}
+ .model{position:static;grid-row:1;height:100%}.model .canvas{height:100%}
+ .hero{padding:8px 0 24px}
+}

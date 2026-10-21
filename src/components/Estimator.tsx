@@ -47,7 +47,8 @@ export default function Estimator({ company: c }: { company: Company }) {
   // Phone bottom sheet: peek, half, full. Positions are offsets from the full position.
   const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
   const [drag, setDrag] = useState<number | null>(null);
-  const sheetRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null), bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (sheet === "peek") bodyRef.current?.scrollTo({ top: 0, behavior: "smooth" }); }, [sheet]);
   const g = useRef({ y0: 0, base: 0, t: 0, last: 0, v: 0 });
   const offsets = () => { const h = sheetRef.current?.offsetHeight ?? 600, vh = window.innerHeight; return { full: 0, half: Math.max(0, h - vh * 0.5), peek: Math.max(0, h - 150) }; };
   const onGrabDown = (e: React.PointerEvent) => { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); const o = offsets(); g.current = { y0: e.clientY, base: o[sheet], t: performance.now(), last: e.clientY, v: 0 }; setDrag(o[sheet]); };
@@ -95,14 +96,14 @@ export default function Estimator({ company: c }: { company: Company }) {
           <div className="grab" onPointerDown={onGrabDown} onPointerMove={onGrabMove} onPointerUp={onGrabUp} onPointerCancel={onGrabUp}>
             <span className="handle" /><button type="button" className="grab-btn" aria-label={sheet === "full" ? "Show the model" : "Show all options"} onClick={() => setSheet(sheet === "full" ? "half" : "full")} />
           </div>
-          <div className="sheet-body">
+          <div className="sheet-body" ref={bodyRef}>
         <section className="controls card" aria-label="Your home">
           <div className="field">
             <div className="row">
               <label className="label" htmlFor="area">Square footage</label>
               <span className="range-note">{fmt(c.sqft.min)} to {fmt(c.sqft.max)} sq ft</span>
             </div>
-            <div className="slide-row"><input id="area" type="range" min={c.sqft.min} max={c.sqft.max} step={c.sqft.step} value={home.sqft}
+            <div className="slide-row"><input id="area" onPointerDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} onTouchMove={(e) => e.stopPropagation()} type="range" min={c.sqft.min} max={c.sqft.max} step={c.sqft.step} value={home.sqft}
               onChange={(e) => set({ sqft: +e.target.value })} aria-valuetext={areaText}
               style={{ "--p": `${((home.sqft - c.sqft.min) / (c.sqft.max - c.sqft.min)) * 100}%` } as React.CSSProperties} />
             <span className="value-box big-value" aria-hidden="true">{fmt(home.sqft)}</span></div>

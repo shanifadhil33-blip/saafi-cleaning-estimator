@@ -12,6 +12,7 @@ for (const [w, h] of [[360, 780], [390, 844], [1440, 900]]) {
   ok(await p.locator("h1").innerText().then(t => t.includes("Price your home cleaning")), `${w} title`);
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${w} no sideways scroll`);
   await p.screenshot({ path: `${OUT}/${w}-top.png` });
+  if (w >= 1024) { const r = await p.locator(".summary .cta").boundingBox(); ok(r && r.y + r.height <= h && await p.evaluate(() => scrollY) === 0, `${w} price and Book visible without page scroll`); }
   const t0 = await tot();
   await p.locator("#area").fill("4000"); await p.waitForTimeout(600); const t1 = await tot(); ok(+t1 > +t0, `${w} slider raises price ${t0}->${t1}`);
   ok((await p.locator(".banner a").getAttribute("href")).startsWith("https://wa.me/971500000000"), `${w} demo banner links to placeholder`);

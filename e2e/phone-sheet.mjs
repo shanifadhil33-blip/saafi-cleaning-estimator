@@ -23,13 +23,15 @@ for (const [w, h] of [[360, 780], [390, 844]]) {
   await touch("touchStart", sl.x + sl.width * 0.45, sl.y + sl.height / 2);
   for (let i = 1; i <= 8; i++) await touch("touchMove", sl.x + sl.width * (0.45 + 0.06 * i), sl.y + sl.height / 2);
   await p.waitForTimeout(250); const mid = await p.locator(".canvas").screenshot(); await p.screenshot({ path: `${OUT}/${w}-dragging-slider.png` });
-  await touch("touchEnd"); await p.waitForTimeout(400);
+  const stDuring = await state(); await touch("touchEnd"); await p.waitForTimeout(400);
+  ok(stDuring === "half" && await state() === "half", `${w} slider drag never moves the sheet`);
   ok(!before.equals(mid), `${w} house changes while dragging the slider (${await p.locator(".value-box").innerText()} sq ft)`);
   const hb = await p.locator(".grab").boundingBox(); const gx = hb.x + hb.width / 2 + 60, gy = hb.y + 15;
   await dragY(gx, gy, gy - h * 0.45); ok(await state() === "full", `${w} drag up to full`); await p.screenshot({ path: `${OUT}/${w}-full.png` });
   const body = p.locator(".sheet-body"); await body.evaluate((e) => e.scrollTo(0, 99999)); await p.waitForTimeout(300);
   ok(await body.evaluate((e) => e.scrollTop > 0), `${w} sheet scrolls inside`); await p.screenshot({ path: `${OUT}/${w}-full-scrolled.png` });
-  const hb2 = await p.locator(".grab").boundingBox(); await dragY(gx, hb2.y + 15, h - 60); ok(await state() === "peek", `${w} drag down to peek`);
+  const hb2 = await p.locator(".grab").boundingBox(); await dragY(gx, hb2.y + 15, h - 60); ok(await state() === "peek", `${w} drag down to peek`); await p.waitForTimeout(600);
+  ok(await body.evaluate((e) => e.scrollTop) === 0, `${w} peek resets sheet scroll to top`);
   await p.screenshot({ path: `${OUT}/${w}-peek.png` });
   const bar = await p.locator(".mobile-bar").boundingBox();
   ok(await p.evaluate(() => getComputedStyle(document.querySelector(".mobile-bar")).zIndex > getComputedStyle(document.querySelector(".sheet")).zIndex), `${w} total bar stays on top of the sheet`);
