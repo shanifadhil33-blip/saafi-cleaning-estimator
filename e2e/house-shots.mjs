@@ -16,6 +16,7 @@ await p.locator("#area").fill("6000"); await shot("drive-sqft-6000");
 await p.locator("#area").fill("2800");
 for (let i = 0; i < 3; i++) await p.getByRole("button", { name: "More bedrooms" }).click();
 await p.getByRole("button", { name: "More bathrooms" }).click(); await shot("drive-4bed-2bath");
+await p.locator(".addx summary").click();
 for (const n of ["Maid's room", "Balcony", "Majlis", "Sofa", "Carpet", "Windows", "Oven", "Fridge"]) await p.getByRole("button", { name: new RegExp("^" + n) }).click();
 await shot("drive-extras");
 await p.locator("label.type", { hasText: "Deep" }).click(); await shot("drive-deep");

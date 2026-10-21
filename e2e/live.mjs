@@ -26,13 +26,13 @@ for (const [w, h] of [[360, 780], [390, 844], [1440, 900]]) {
   ok((await p.locator(".home-label").innerText()).includes("4,000 sq ft · 2 bed · 2 bath"), `${w} label updates`);
   await p.locator("label.type", { hasText: "Deep" }).click(); await p.waitForTimeout(600);
   const t2 = await tot(); ok(+t2 > +t1, `${w} deep raises price ${t1}->${t2}`);
-  ok((await p.locator(".summary").innerText()).includes("Extra floors · 2"), `${w} breakdown has floors`);
+  await p.locator(".more-lines summary").click(); ok((await p.locator(".summary").innerText()).includes("Extra floors · 2"), `${w} breakdown has floors`);
   await p.getByRole("button", { name: "Open floors" }).click(); await p.getByRole("button", { name: "Roof" }).click();
   ok(await p.getByRole("button", { name: "Roof" }).getAttribute("aria-pressed") === "false", `${w} roof toggle`);
-  await p.getByRole("button", { name: /^Majlis/ }).click(); await p.getByRole("button", { name: /^Oven/ }).click(); await p.waitForTimeout(600);
+  await p.locator(".addx summary").click(); await p.getByRole("button", { name: /^Majlis/ }).click(); await p.getByRole("button", { name: /^Oven/ }).click(); await p.waitForTimeout(600);
   const t3 = await tot(); ok(+t3 > +t2, `${w} extras raise price ${t2}->${t3}`);
-  await p.getByRole("button", { name: /^Weekly/ }).click(); await p.waitForTimeout(600);
-  const t4 = await tot(); ok(+t4 < +t3 && (await p.locator(".crew").innerText()).includes("you save"), `${w} weekly saves ${t3}->${t4}`);
+  await p.getByRole("switch", { name: /Weekly/ }).click(); await p.waitForTimeout(600);
+  const t4 = await tot(); ok(+t4 < +t3 && (await p.locator(".wk").innerText()).includes("you save"), `${w} weekly saves ${t3}->${t4}`);
   await p.locator(".model").scrollIntoViewIfNeeded(); await p.waitForTimeout(1200);
   await p.screenshot({ path: `${OUT}/${w}-model.png` });
   await p.screenshot({ path: `${OUT}/${w}-full.png`, fullPage: true });

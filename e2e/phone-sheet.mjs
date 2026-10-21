@@ -37,7 +37,7 @@ for (const [w, h] of [[360, 780], [390, 844]]) {
   ok(await p.evaluate(() => getComputedStyle(document.querySelector(".mobile-bar")).zIndex > getComputedStyle(document.querySelector(".sheet")).zIndex), `${w} total bar stays on top of the sheet`);
   const hb3 = await p.locator(".grab").boundingBox(); await dragY(gx, hb3.y + 15, hb3.y - h * 0.34); const st3 = await state(); ok(st3 === "half", `${w} drag back to half (${st3})`);
   await body.evaluate((e) => e.scrollTo(0, 99999)); await p.waitForTimeout(300);
-  const nb = await p.locator(".summary .note").boundingBox(); ok(nb.y + nb.height <= bar.y, `${w} last item reachable above the bar in half`);
+  const nb = await p.locator(".more-lines summary").boundingBox(); ok(nb.y + nb.height <= bar.y, `${w} last item reachable above the bar in half`);
   await p.screenshot({ path: `${OUT}/${w}-half-scrolled-end.png` });
   console.log(await p.evaluate(() => [...document.querySelectorAll(".sheet button, .mobile-bar button")].filter((e) => e.offsetParent && !e.classList.contains("grab-btn") && e.getBoundingClientRect().height < 44).map((e) => e.className + ":" + e.textContent + ":" + Math.round(e.getBoundingClientRect().height)).join(" | ")));
   const small = await p.evaluate(() => [...document.querySelectorAll(".sheet button, .mobile-bar button")].filter((e) => e.offsetParent && !e.classList.contains("grab-btn")).map((e) => e.getBoundingClientRect()).filter((r) => r.height < 44).length);

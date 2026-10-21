@@ -214,3 +214,27 @@ input[type=range]{touch-action:none}
 @media (min-width:1024px) and (min-height:700px){
  .sheet-body .controls[data-end=false]{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 64px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 64px),transparent)}
 }
+
+/* Simplicity pass */
+.banner{flex-wrap:nowrap;white-space:nowrap;overflow:hidden;font-size:12px;padding:8px 12px;gap:8px}
+.banner span{overflow:hidden;text-overflow:ellipsis}
+.field{padding-bottom:32px}.types{padding-bottom:28px}
+.tname small{display:none}.type{padding:14px 16px}
+.addx{border-top:1px solid #262626;padding:16px 0 20px}
+.addx summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer;min-height:44px;font-weight:500;font-size:16px}
+.addx summary::-webkit-details-marker{display:none}
+.addx summary::after{content:"+";font-size:20px;color:var(--muted);margin-left:8px}.addx[open] summary::after{content:"−"}
+.addx-n{margin-left:auto;font-size:13px;color:var(--muted);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wk{display:inline-flex;align-items:center;gap:10px;min-height:44px;color:#E6E6E6;font-size:14px;margin-top:6px}
+.wk small{color:var(--muted);font-size:13px}
+.sw{width:34px;height:20px;border-radius:20px;background:#2E2E2E;position:relative;transition:background .2s}
+.sw::after{content:"";position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#9A9A9A;transition:transform .2s,background .2s}
+.wk[aria-checked=true] .sw{background:#E6E6E6}.wk[aria-checked=true] .sw::after{transform:translateX(14px);background:#0A0A0A}
+.lines{margin:14px 0 6px}
+.more-lines{margin-bottom:18px}.more-lines summary{cursor:pointer;color:var(--muted);font-size:13px;min-height:32px;display:inline-flex;align-items:center;text-decoration:underline;text-underline-offset:3px}
+.more-lines[open] summary{color:#FFF}.more-lines .lines{margin-top:6px}
+.legend{opacity:.8}
+@media (min-width:1024px){.sheet-body .more-lines{margin-bottom:14px}}
+@media (max-width:1023px){.more-lines summary{min-height:44px}}
+.type.on .tname small{display:block}
+@media (max-width:1023px){.summary .cta{display:none}}

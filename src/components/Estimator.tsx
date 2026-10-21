@@ -57,7 +57,7 @@ export default function Estimator({ company: c }: { company: Company }) {
   const offsets = () => { const h = sheetRef.current?.offsetHeight ?? 600, vh = window.innerHeight; return { full: 0, half: Math.max(0, h - vh * 0.5), peek: Math.max(0, h - 150) }; };
   const onGrabDown = (e: React.PointerEvent) => { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); const o = offsets(); g.current = { y0: e.clientY, base: o[sheet], t: performance.now(), last: e.clientY, v: 0 }; setDrag(o[sheet]); };
   const onGrabMove = (e: React.PointerEvent) => { if (drag == null) return; const o = offsets(), now = performance.now(); g.current.v = (e.clientY - g.current.last) / Math.max(1, now - g.current.t); g.current.t = now; g.current.last = e.clientY; setDrag(Math.min(o.peek + 40, Math.max(-20, g.current.base + e.clientY - g.current.y0))); };
-  const onGrabUp = () => { if (drag == null) return; const o = offsets(), y = drag + Math.max(-1.5, Math.min(1.5, g.current.v)) * 120; const pick = (Object.entries(o) as [typeof sheet, number][]).sort((a, b) => Math.abs(a[1] - y) - Math.abs(b[1] - y))[0][0]; if (Math.abs(drag - g.current.base) > 4) setSheet(pick); setDrag(null); };
+  const onGrabUp = () => { if (drag == null) return; const o = offsets(), y = drag + Math.max(-1.5, Math.min(1.5, g.current.v)) * 80; const pick = (Object.entries(o) as [typeof sheet, number][]).sort((a, b) => Math.abs(a[1] - y) - Math.abs(b[1] - y))[0][0]; if (Math.abs(drag - g.current.base) > 4) setSheet(pick); setDrag(null); };
   const est = useMemo(() => estimate(c, home), [c, home]);
   const total = useTicker(est.total);
   const [focus, setFocus] = useState<Focus | null>(null);
@@ -71,13 +71,13 @@ export default function Estimator({ company: c }: { company: Company }) {
     <>
 
     <main className={`page sheet-${sheet}`}>
-    <div className="banner"><span>This is a demo. Your version gets your logo, colours and prices.</span><a href={demoLink} target="_blank" rel="noopener">Get this for your company</a></div>
+    <div className="banner"><span>Demo. Your version gets your logo, colours and prices.</span><a href={demoLink} target="_blank" rel="noopener">Get yours</a></div>
       <header className="top">
         <div className="logo">{c.brand.name}</div>
       </header>
       <section className="hero">
         <h1>Price your home cleaning</h1>
-        <p className="sub">Tell us about your home. The price and the model update as you go, and you can book when it looks right.</p>
+        <p className="sub">Tell us about your home. The price and the model change as you go.</p>
       </section>
 
       <div className="layout">
@@ -131,30 +131,32 @@ export default function Estimator({ company: c }: { company: Company }) {
               </label>
             ))}
           </fieldset>
-          {c.rooms && <div className="field"><span className="label">Extra rooms</span><div className="pills">
-            {Object.entries(c.rooms).map(([k, a]) => <button key={k} type="button" className="pill" aria-pressed={!!home.rooms?.includes(k)} onClick={() => toggle("rooms", k)}>{a.label}<small>+{a.price}</small></button>)}
-          </div></div>}
-          {c.extras && <div className="field"><span className="label">Extras</span><div className="pills">
-            {Object.entries(c.extras).map(([k, a]) => <button key={k} type="button" className="pill" aria-pressed={!!home.extras?.includes(k)} onClick={() => toggle("extras", k)}>{a.label}<small>+{a.price}</small></button>)}
-          </div></div>}
-          {c.weeklyDiscount ? <div className="field"><span className="label">How often</span>
-            <div className="seg" role="group" aria-label="How often">
-              <button type="button" aria-pressed={!home.weekly} onClick={() => set({ weekly: false })}>One off</button>
-              <button type="button" aria-pressed={!!home.weekly} onClick={() => set({ weekly: true })}>Weekly <small>save {Math.round(c.weeklyDiscount * 100)}%</small></button>
-            </div></div> : null}
+          {(c.rooms || c.extras) && (() => { const n = (home.rooms?.length ?? 0) + (home.extras?.length ?? 0); return (
+            <details className="addx"><summary><span>Add extras</span><span className="addx-n">{n ? `${n} added` : "Maid's room, majlis, sofa and more"}</span></summary>
+              <div className="pills">
+                {c.rooms && Object.entries(c.rooms).map(([k, a]) => <button key={k} type="button" className="pill" aria-pressed={!!home.rooms?.includes(k)} onClick={() => toggle("rooms", k)}>{a.label}<small>+{a.price}</small></button>)}
+                {c.extras && Object.entries(c.extras).map(([k, a]) => <button key={k} type="button" className="pill" aria-pressed={!!home.extras?.includes(k)} onClick={() => toggle("extras", k)}>{a.label}<small>+{a.price}</small></button>)}
+              </div>
+            </details>); })()}
         </section>
         <section className="summary" aria-label="Your estimate">
           <div className="price-row"><div className="total" aria-live="polite"><small>{c.currency}</small>{fmt(total)}</div>
-          <div className="crew">About {est.hours} hours with a crew of {est.crew}{est.saving ? ` · you save ${c.currency} ${fmt(est.saving)} a visit` : ""}</div></div>
+          <div className="crew">About {est.hours} hours with a crew of {est.crew}</div></div>
+          {c.weeklyDiscount ? <button type="button" role="switch" aria-checked={!!home.weekly} className="wk" onClick={() => set({ weekly: !home.weekly })}>
+            <span className="sw" aria-hidden="true" />Weekly <small>{home.weekly ? `you save ${c.currency} ${fmt(est.saving)}` : `save ${Math.round(c.weeklyDiscount * 100)}%`}</small></button> : null}
           <ul className="lines">
-            {est.lines.filter((l) => l.amount > 0 || l.key === "area").map((l) => (
+            {est.lines.filter((l) => ["area", "bed", "bath"].includes(l.key)).map((l) => (
+              <li key={l.key}><span>{l.label}</span><span>{c.currency} {fmt(l.amount)}</span></li>
+            ))}
+          </ul>
+          <details className="more-lines"><summary>See details</summary><ul className="lines">
+            {est.lines.filter((l) => !["area", "bed", "bath"].includes(l.key) && l.amount !== 0).map((l) => (
               <li key={l.key}><span>{l.label}</span><span>{l.amount < 0 ? "minus " : ""}{c.currency} {fmt(Math.abs(l.amount))}</span></li>
             ))}
             {est.subtotal > est.lines.reduce((s, l) => s + l.amount, 0) && <li><span>Minimum visit</span><span>{c.currency} {fmt(est.subtotal)}</span></li>}
             <li><span>VAT {Math.round(c.vatRate * 100)}%</span><span>{c.currency} {fmt(est.vat)}</span></li>
-          </ul>
+          </ul></details>
           <button type="button" className="cta" onClick={() => setBooking(true)}>Book this cleaning</button>
-          <p className="note">A guide price. The crew confirms it on WhatsApp before the visit.</p>
         </section>
           </div>
         </div>
