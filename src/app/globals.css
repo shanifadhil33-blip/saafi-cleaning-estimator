@@ -97,3 +97,4 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
 .seg button[aria-pressed=true]{background:#FFF;color:#0A0A0A;font-weight:600}
 .more{margin:4px 0 16px}.more summary{cursor:pointer;color:var(--muted);font-size:13px;padding:6px 0 12px}.more[open] summary{color:#FFF}
 @media (hover:hover) and (pointer:fine){.pill:hover{border-color:#555;color:#FFF}}
+@media (max-width:399px){.legend{display:none}}

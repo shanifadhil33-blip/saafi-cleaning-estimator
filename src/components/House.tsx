@@ -79,7 +79,7 @@ function Block({ r, focus, extras, type }: { r: Room; focus: Focus | null; extra
     g.position.set(px(dt), 0, pz(dt));
     g.scale.set(Math.max(0.01, sw(dt) - GAP) * s, s, Math.max(0.01, sd(dt) - GAP) * s);
     glow.current = Math.max(0, glow.current - dt * 0.9);
-    if (mat.current) mat.current.emissiveIntensity = glow.current * 0.9;
+    if (mat.current) mat.current.emissiveIntensity = glow.current * 0.9 + (type === "deep" ? 0.14 : 0);
   });
   const marks: [number, number, number, number, number, number][] = [];
   if (type === "moveout") extras = []; // empty home: no furniture // x z w h d y, in unit room space
@@ -91,8 +91,8 @@ function Block({ r, focus, extras, type }: { r: Room; focus: Focus | null; extra
     <group ref={ref}>
       <mesh position={[0, BLOCK / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[1, BLOCK, 1]} />
-        <meshStandardMaterial ref={mat} color={TONE[r.kind]} emissive="#FFFFFF" emissiveIntensity={0} roughness={0.85} metalness={0} />
-        <Edges color={type === "deep" ? "#FFFFFF" : "#0E0E0E"} />
+        <meshStandardMaterial ref={mat} color={TONE[r.kind]} emissive="#FFFFFF" emissiveIntensity={0} roughness={0.85} metalness={0} transparent={type === "moveout"} opacity={type === "moveout" ? 0.28 : 1} depthWrite={type !== "moveout"} />
+        <Edges color={type === "deep" ? "#FFFFFF" : type === "moveout" ? "#BDBDBD" : "#0E0E0E"} />
       </mesh>
       {marks.map(([x, z, w, hh, d], i) => (
         <mesh key={i} position={[x, BLOCK + (BLOCK * hh) / 2, z]} scale={[w, BLOCK * hh, d]}>
@@ -164,7 +164,9 @@ function Floor({ plan, y, top, rise, focus, extras, balcony, windows, type }: { 
   );
 }
 
-function Roof({ W, D, y, show }: { W: number; D: number; y: number; show: boolean }) {
+function Roof({ W, D, y, show, ghost }: { W: number; D: number; y: number; show: boolean; ghost: boolean }) {
+  const rm = useRef<THREE.MeshStandardMaterial>(null);
+  const op = useSpring(ghost ? 0.35 : 1, 1, 80, 16);
   const ref = useRef<THREE.Group>(null);
   const py = useSpring(y, y + 1, 90, 15), sc = useSpring(show ? 1 : 0, 0.001, 140, 16);
   const geo = useMemo(() => {
@@ -175,22 +177,27 @@ function Roof({ W, D, y, show }: { W: number; D: number; y: number; show: boolea
   }, [W, D]);
   useFrame((_, dt) => {
     const g = ref.current; if (!g) return;
-    const s = Math.max(0.001, sc(dt)); g.position.y = py(dt); g.scale.setScalar(s); g.visible = s > 0.02;
+    const s = Math.max(0.001, sc(dt)); g.position.y = py(dt); if (rm.current) { const o = op(dt); rm.current.opacity = o; rm.current.depthWrite = o > 0.95; } g.scale.setScalar(s); g.visible = s > 0.02;
   });
   return (
     <group ref={ref}>
       <mesh geometry={geo} castShadow>
-        <meshStandardMaterial color="#4A4A4A" roughness={0.75} flatShading />
+        <meshStandardMaterial ref={rm} color="#4A4A4A" roughness={0.75} flatShading transparent />
         <Edges color="#8A8A8A" />
       </mesh>
     </group>
   );
 }
 
-function Fit({ scale, y, spin, children }: { scale: number; y: number; spin: boolean; children: React.ReactNode }) {
+function Fit({ scale, y, spin, glide, children }: { scale: number; y: number; spin: boolean; glide: { y: number; n: number } | null; children: React.ReactNode }) {
   const ref = useRef<THREE.Group>(null);
-  const s = useSpring(scale, scale, 60, 14), py = useSpring(y, y, 60, 14);
-  useFrame((_, dt) => { const g = ref.current; if (!g) return; g.scale.setScalar(s(dt)); g.position.y = py(dt); if (spin) g.rotation.y += dt * 0.08; });
+  const until = useRef(0), seen = useRef(-1);
+  useEffect(() => { if (glide && glide.n !== seen.current) { seen.current = glide.n; until.current = performance.now() + 1800; } }, [glide]);
+  const s = useSpring(scale, scale, 60, 14);
+  const sRef = useRef({ x: y, v: 0 });
+  useFrame((_, dt) => { const g = ref.current; if (!g) return; g.scale.setScalar(s(dt));
+    const t = glide && performance.now() < until.current ? 0.15 - glide.y : y;
+    const st = sRef.current, k = Math.min(dt, 1 / 30); st.v += ((t - st.x) * 40 - st.v * 12) * k; st.x += st.v * k; g.position.y = st.x; if (spin) g.rotation.y += dt * 0.08; });
   return <group ref={ref}>{children}</group>;
 }
 
@@ -205,11 +212,26 @@ export default function House({ home, openFloors, roof, focus = null }: { home: 
     return () => m.removeEventListener("change", f);
   }, []);
   const step = WALL_H + SLAB + (openFloors ? OPEN_GAP : 0);
+  const prevFloors = useRef(home.floors), glideN = useRef(0);
+  const glideFloor = useMemo(() => {
+    let f = -1;
+    if (home.floors !== prevFloors.current) { f = home.floors - 1; prevFloors.current = home.floors; }
+    else if (focus) {
+      const k = focus.kind;
+      f = k === "bedroom" ? (home.floors > 1 ? 1 : 0) : k === "bathroom" ? home.floors - 1 : ["kitchen", "living", "majlis", "maid"].includes(k) ? 0 : -1;
+    }
+    return f;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [home.floors, focus?.n]);
   const topY = (home.floors - 1) * step + WALL_H;
-  const roofY = topY + (openFloors ? 0.95 : 0.02);
+  const roofY = topY + (home.floors === 1 ? 1.15 : openFloors ? 0.95 : 0.02);
   const height = roofY + (roof ? floors[0].D * 0.3 : 0);
   const size = Math.max(floors[0].W * 1.05, floors[0].D, height * 0.95);
   const fit = Math.min(1.3, 2.7 * Math.pow(size, -0.8));
+  // camera glide: move the changed floor's centre to the view centre for a moment (off with reduced motion or one floor)
+  const glide = useMemo(() => (glideFloor < 0 || reduce || home.floors === 1 ? null : { y: (glideFloor * step + WALL_H / 2) * fit, n: ++glideN.current }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [glideFloor, focus?.n, home.floors, reduce]);
   return (
     <Canvas
       onPointerDown={() => setHeld(true)}
@@ -220,9 +242,9 @@ export default function House({ home, openFloors, roof, focus = null }: { home: 
       <hemisphereLight args={["#FFFFFF", "#1A1A1A", 0.5]} />
       <directionalLight position={[3, 10, 5]} intensity={1.6} castShadow shadow-mapSize={[1024, 1024]} />
       <directionalLight position={[-6, 4, -4]} intensity={0.3} />
-      <Fit scale={fit} y={-(height * fit) / 2 + 0.15} spin={!reduce && !held}>
+      <Fit scale={fit} y={-(height * fit) / 2 + 0.15} spin={!reduce && !held} glide={glide}>
         {floors.map((p, i) => <Floor key={i} plan={p} y={i * step} top={i === floors.length - 1} rise={step} focus={focus} extras={extras} balcony={!!home.rooms?.includes("balcony") && i === floors.length - 1 && floors.length > 1 || (!!home.rooms?.includes("balcony") && floors.length === 1)} windows={extras.includes("windows")} type={home.type} />)}
-        <Roof W={floors[0].W} D={floors[0].D} y={roofY} show={roof} />
+        <Roof W={floors[0].W} D={floors[0].D} y={roofY} show={roof} ghost={home.floors === 1} />
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -SLAB - 0.005, 0]} receiveShadow>
           <circleGeometry args={[4.2, 64]} />
           <meshStandardMaterial color="#141414" roughness={1} />

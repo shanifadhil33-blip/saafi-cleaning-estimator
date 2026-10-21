@@ -18,4 +18,10 @@ for (const n of ["Maid's room", "Balcony", "Majlis", "Sofa", "Carpet", "Windows"
 await shot("drive-extras");
 await p.locator("label.type", { hasText: "Deep" }).click(); await shot("drive-deep");
 await p.locator("label.type", { hasText: "Move out" }).click(); await shot("drive-moveout");
+const q = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+await q.goto(BASE); await q.waitForSelector("canvas"); await q.waitForTimeout(3000);
+await q.locator(".canvas").screenshot({ path: `${OUT}/glide-before.png` });
+await q.getByRole("button", { name: "More bathrooms" }).click(); await q.waitForTimeout(900);
+await q.locator(".canvas").screenshot({ path: `${OUT}/glide-top-floor.png` });
+await q.waitForTimeout(2600); await q.locator(".canvas").screenshot({ path: `${OUT}/glide-back.png` });
 await b.close();
