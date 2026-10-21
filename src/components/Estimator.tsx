@@ -33,6 +33,13 @@ function useCount(v: number) {
   return shown;
 }
 
+function LangSwitch({ lang, setLang, className }: { lang: Lang; setLang: (l: Lang) => void; className: string }) {
+  return (
+    <div className={`lang ${className}`} role="group" aria-label="Language">
+      {LANGS.map((x) => <button key={x.id} type="button" lang={x.id} data-lang={x.id} aria-pressed={lang === x.id} onClick={() => setLang(x.id)}>{x.label}</button>)}
+    </div>
+  );
+}
 const Chev = ({ s = 14 }: { s?: number }) => <svg className="chev" width={s} height={s} viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5.2l4 3.8 4-3.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 const WaIcon = () => <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5a7.5 7.5 0 0 0-6.5 11.2L2.6 17.4l3.8-1a7.5 7.5 0 1 0 3.6-13.9Z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>;
 const Tick = () => <span className="tick" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-4.9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></span>;
@@ -126,8 +133,10 @@ export default function Estimator({ company: c }: { company: Company }) {
   const [dragging, setDragging] = useState(false);
   const reduce = useReducedMotion();
   const snaps = useCallback(() => {
-    const vh = window.innerHeight, bar = barRef.current?.offsetHeight || 76, top = (topRef.current?.offsetHeight || 50) + 8;
-    const full = Math.max(top, Math.round(vh * 0.09)), half = Math.round(vh * 0.5), peek = Math.max(half + 60, Math.round(vh - bar - 150));
+    const vh = window.innerHeight, bar = barRef.current?.offsetHeight || 76, top = (topRef.current?.offsetHeight || 0) + 8;
+    const full = Math.max(top, Math.round(vh * 0.09));
+    /* Language shares the title row, so the default snap takes that row (~52px) and shows more selectors. */
+    const half = Math.round(vh * 0.5) - 52, peek = Math.max(half + 60, Math.round(vh - bar - 150));
     return { full, half, peek };
   }, []);
   const apply = useCallback((y: number, animate: boolean) => {
@@ -208,9 +217,7 @@ export default function Estimator({ company: c }: { company: Company }) {
       <div className="app">
         <header className="top rise" style={{ ["--d" as string]: 0 }} ref={topRef}>
           <div className="brand">{brand ? <span className="brand-name">{brand}</span> : null}</div>
-          <div className="lang" role="group" aria-label="Language">
-            {LANGS.map((x) => <button key={x.id} type="button" lang={x.id} data-lang={x.id} aria-pressed={lang === x.id} onClick={() => setLang(x.id)}>{x.label}</button>)}
-          </div>
+          <LangSwitch className="lang-bar" lang={lang} setLang={setLang} />
         </header>
 
         <main className="cols">
@@ -320,8 +327,11 @@ export default function Estimator({ company: c }: { company: Company }) {
                 <HouseCanvas sqft={s.sqft} floors={s.floors} bedrooms={s.beds} bathrooms={s.baths} kind={s.kind} maid={s.maid} pool={s.extras.includes("pool")} balcony={s.extras.includes("balcony")} insets={insets} />
               </div>
               <div className="stage-head" id="stageHead" ref={headRef}>
-                <AnimatePresence mode="wait" initial={false}><motion.h2 key={homeTitle} id="homeTitle" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.26, ease: EASE }}>{homeTitle}</motion.h2></AnimatePresence>
-                <p id="homeSub">{sub}</p>
+                <div className="stage-copy">
+                  <AnimatePresence mode="wait" initial={false}><motion.h2 key={homeTitle} id="homeTitle" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.26, ease: EASE }}>{homeTitle}</motion.h2></AnimatePresence>
+                  <p id="homeSub">{sub}</p>
+                </div>
+                <LangSwitch className="lang-stage" lang={lang} setLang={setLang} />
               </div>
               <p className="stage-hint">{t.drag}</p>
               {!phone && summary}
