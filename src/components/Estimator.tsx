@@ -1,6 +1,14 @@
 "use client";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
+
+const SPRING = { type: "spring", stiffness: 380, damping: 38, mass: 0.9 } as const;
+const EASE = { duration: 0.3, ease: [0.22, 1, 0.36, 1] } as const;
+
+function Collapse({ open, children }: { open: boolean; children: React.ReactNode }) {
+  return <AnimatePresence initial={false}>{open && <motion.div key="c" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={EASE} style={{ overflow: "hidden" }}>{children}</motion.div>}</AnimatePresence>;
+}
 import { estimate, fmt, homeLabel, whatsappUrl, type Company, type Home, type CleanType } from "@/lib/engine";
 import { ROOM_COLORS, ROOM_NAMES } from "./rooms";
 import type { Focus } from "./House";
@@ -25,12 +33,13 @@ function useTicker(value: number) {
 }
 
 function Stepper({ label, value, step, min, max, onChange }: { label: string; value: number; step: number; min: number; max: number; onChange: (v: number) => void }) {
+  const prev = useRef(value); const dir = value >= prev.current ? 1 : -1; useEffect(() => { prev.current = value; }, [value]);
   return (
     <div>
       <span className="label">{label}</span>
       <div className="stepper" role="group" aria-label={label}>
         <button type="button" aria-label={`Fewer ${label.toLowerCase()}`} disabled={value <= min} onClick={() => onChange(Math.max(min, value - step))}>−</button>
-        <output aria-live="polite">{value}</output>
+        <output aria-live="polite" className="num"><AnimatePresence mode="popLayout" initial={false}><motion.span key={value} initial={{ y: 14 * dir, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -14 * dir, opacity: 0 }} transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }} style={{ display: "inline-block" }}>{value}</motion.span></AnimatePresence></output>
         <button type="button" aria-label={`More ${label.toLowerCase()}`} disabled={value >= max} onClick={() => onChange(Math.min(max, value + step))}>+</button>
       </div>
     </div>
@@ -43,7 +52,9 @@ export default function Estimator({ company: c }: { company: Company }) {
   const [home, setHome] = useState<Home>({ sqft: 2800, floors: 3, bedrooms: 1, bathrooms: 1.5, type: "standard" });
   const [openFloors, setOpenFloors] = useState(true);
   const [roof, setRoof] = useState(true);
-  const [booking, setBooking] = useState(false);
+  const [booking, setBooking] = useState<{ x: number; y: number } | null>(null);
+  const [showX, setShowX] = useState(false), [showD, setShowD] = useState(false);
+  const openBook = (e: React.MouseEvent) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setBooking({ x: r.left + r.width / 2 - innerWidth / 2, y: r.top + r.height / 2 - innerHeight / 2 }); };
   // Phone bottom sheet: peek, half, full. Positions are offsets from the full position.
   const [sheet, setSheet] = useState<"peek" | "half" | "full">("half");
   const [drag, setDrag] = useState<number | null>(null);
@@ -64,14 +75,12 @@ export default function Estimator({ company: c }: { company: Company }) {
   const bump = (kind: string) => setFocus((f) => ({ kind, n: (f?.n ?? 0) + 1 }));
   const set = (p: Partial<Home>) => setHome((h) => ({ ...h, ...p }));
   const toggle = (k: "rooms" | "extras", id: string) => { setHome((h) => { const l = h[k] ?? []; return { ...h, [k]: l.includes(id) ? l.filter((x) => x !== id) : [...l, id] }; }); bump(id === "majlis" ? "majlis" : id === "maid" ? "maid" : id === "oven" || id === "fridge" ? "kitchen" : id === "sofa" || id === "carpet" ? "living" : "none"); };
-  const demoLink = `https://wa.me/${c.whatsapp}?text=${encodeURIComponent(`Hello, I saw the ${c.brand.name} cleaning estimator demo. I would like one for my company.`)}`;
   const areaText = `${fmt(home.sqft)} sq ft`;
 
   return (
-    <>
+    <MotionConfig reducedMotion="user">
 
     <main className={`page sheet-${sheet}`}>
-    <div className="banner"><span>Demo. Your version gets your logo, colours and prices.</span><a href={demoLink} target="_blank" rel="noopener">Get yours</a></div>
       <header className="top">
         <div className="logo">{c.brand.name}</div>
       </header>
@@ -114,7 +123,7 @@ export default function Estimator({ company: c }: { company: Company }) {
           </div>
           <div className="field"><span className="label">Floors</span>
             <div className="seg floors" role="group" aria-label="Floors">
-              {[1, 2, 3].map((f) => <button key={f} type="button" aria-pressed={home.floors === f} onClick={() => set({ floors: f as 1 | 2 | 3 })}>{f}</button>)}
+              {[1, 2, 3].map((f) => <button key={f} type="button" aria-pressed={home.floors === f} onClick={() => set({ floors: f as 1 | 2 | 3 })}>{home.floors === f && <motion.span layoutId="floorPill" className="pill-bg" transition={SPRING} />}<span className="pill-t">{f}</span></button>)}
             </div></div>
           <div className="field steps">
             <Stepper label="Bedrooms" value={home.bedrooms} step={1} min={0} max={8} onChange={(v) => { set({ bedrooms: v }); bump("bedroom"); }} />
@@ -126,18 +135,18 @@ export default function Estimator({ company: c }: { company: Company }) {
               <label key={k} className={`type ${home.type === k ? "on" : ""}`}>
                 <input type="radio" name="type" value={k} checked={home.type === k} onChange={() => { set({ type: k }); bump("all"); }} />
                 <span className="dot" />
-                <span className="tname">{c.types[k].label}<small>{c.types[k].blurb}</small></span>
+                <span className="tname">{c.types[k].label}<Collapse open={home.type === k}><small>{c.types[k].blurb}</small></Collapse></span>
                 <span className="rate">{c.currency} {c.types[k].perSqft.toFixed(2)} / sq ft</span>
               </label>
             ))}
           </fieldset>
           {(c.rooms || c.extras) && (() => { const n = (home.rooms?.length ?? 0) + (home.extras?.length ?? 0); return (
-            <details className="addx"><summary><span>Add extras</span><span className="addx-n">{n ? `${n} added` : "Maid's room, majlis, sofa and more"}</span></summary>
-              <div className="pills">
+            <div className="addx"><button type="button" className="sum-btn" aria-expanded={showX} onClick={() => setShowX((v) => !v)}><span>Add extras</span><span className="addx-n">{n ? `${n} added` : "Maid's room, majlis, sofa and more"}</span><span className="chev" aria-hidden="true" /></button>
+              <Collapse open={showX}><div className="pills">
                 {c.rooms && Object.entries(c.rooms).map(([k, a]) => <button key={k} type="button" className="pill" aria-pressed={!!home.rooms?.includes(k)} onClick={() => toggle("rooms", k)}>{a.label}<small>+{a.price}</small></button>)}
                 {c.extras && Object.entries(c.extras).map(([k, a]) => <button key={k} type="button" className="pill" aria-pressed={!!home.extras?.includes(k)} onClick={() => toggle("extras", k)}>{a.label}<small>+{a.price}</small></button>)}
-              </div>
-            </details>); })()}
+              </div></Collapse>
+            </div>); })()}
         </section>
         <section className="summary" aria-label="Your estimate">
           <div className="price-row"><div className="total" aria-live="polite"><small>{c.currency}</small>{fmt(total)}</div>
@@ -149,14 +158,14 @@ export default function Estimator({ company: c }: { company: Company }) {
               <li key={l.key}><span>{l.label}</span><span>{c.currency} {fmt(l.amount)}</span></li>
             ))}
           </ul>
-          <details className="more-lines"><summary>See details</summary><ul className="lines">
+          <div className="more-lines"><button type="button" className="sum-btn" aria-expanded={showD} onClick={() => setShowD((v) => !v)}>See details<span className="chev" aria-hidden="true" /></button><Collapse open={showD}><ul className="lines">
             {est.lines.filter((l) => !["area", "bed", "bath"].includes(l.key) && l.amount !== 0).map((l) => (
               <li key={l.key}><span>{l.label}</span><span>{l.amount < 0 ? "minus " : ""}{c.currency} {fmt(Math.abs(l.amount))}</span></li>
             ))}
             {est.subtotal > est.lines.reduce((s, l) => s + l.amount, 0) && <li><span>Minimum visit</span><span>{c.currency} {fmt(est.subtotal)}</span></li>}
             <li><span>VAT {Math.round(c.vatRate * 100)}%</span><span>{c.currency} {fmt(est.vat)}</span></li>
-          </ul></details>
-          <button type="button" className="cta" onClick={() => setBooking(true)}>Book this cleaning</button>
+          </ul></Collapse></div>
+          <button type="button" className="cta" onClick={openBook}>Book this cleaning</button>
         </section>
           </div>
         </div>
@@ -164,18 +173,19 @@ export default function Estimator({ company: c }: { company: Company }) {
 
       <div className="mobile-bar">
         <div><div className="small muted">Estimated total</div><strong>{c.currency} {fmt(total)}</strong></div>
-        <button type="button" className="cta" onClick={() => setBooking(true)}>Book this cleaning</button>
+        <button type="button" className="cta" onClick={openBook}>Book this cleaning</button>
       </div>
 
-      {booking && <BookingModal c={c} home={home} est={est} onClose={() => setBooking(false)} />}
+      <AnimatePresence>{booking && <BookingModal key="bk" origin={booking} c={c} home={home} est={est} onClose={() => setBooking(null)} />}</AnimatePresence>
     </main>
-    </>
+    </MotionConfig>
   );
 }
 
-function BookingModal({ c, home, est, onClose }: { c: Company; home: Home; est: ReturnType<typeof estimate>; onClose: () => void }) {
+function BookingModal({ c, home, est, onClose, origin }: { origin: { x: number; y: number }; c: Company; home: Home; est: ReturnType<typeof estimate>; onClose: () => void }) {
   const [f, setF] = useState({ name: "", phone: "", email: "", address: "", date: today(), time: "09:00", notes: "" });
-  const [tried, setTried] = useState(false);
+  const [tried, setTried] = useState(false), [sent, setSent] = useState(false);
+  const phone = typeof window !== "undefined" && window.innerWidth < 640;
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
@@ -189,7 +199,7 @@ function BookingModal({ c, home, est, onClose }: { c: Company; home: Home; est: 
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setTried(true);
     if (missing.length || phoneBad) return;
-    window.open(whatsappUrl(c, home, est, f), "_blank", "noopener");
+    window.open(whatsappUrl(c, home, est, f), "_blank", "noopener"); setSent(true);
   };
   const inp = (k: keyof typeof f, label: string, type = "text", extra: Record<string, string> = {}) => (
     <label className={`in ${tried && (missing.includes(k as never) || (k === "phone" && phoneBad)) ? "bad" : ""}`}>
@@ -200,8 +210,21 @@ function BookingModal({ c, home, est, onClose }: { c: Company; home: Home; est: 
     </label>
   );
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="bk-title" ref={ref}>
+    <motion.div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      initial={{ opacity: 0, backdropFilter: "blur(0px)" }} animate={{ opacity: 1, backdropFilter: "blur(6px)" }} exit={{ opacity: 0, backdropFilter: "blur(0px)" }} transition={{ duration: 0.25 }}>
+      <motion.div className="modal" role="dialog" aria-modal="true" aria-labelledby="bk-title" ref={ref}
+        initial={phone ? { y: "100%" } : { opacity: 0, scale: 0.4, x: origin.x, y: origin.y }}
+        animate={phone ? { y: 0 } : { opacity: 1, scale: 1, x: 0, y: 0 }}
+        exit={phone ? { y: "100%" } : { opacity: 0, scale: 0.4, x: origin.x, y: origin.y }}
+        transition={SPRING}>
+        <AnimatePresence mode="wait" initial={false}>{sent ? (
+          <motion.div key="ok" className="sent" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={EASE}>
+            <span className="tick" aria-hidden="true" />
+            <h2 id="bk-title">Opening WhatsApp</h2>
+            <p className="muted">Your booking is written out. Press send in WhatsApp to confirm it with {c.brand.name}.</p>
+            <button type="button" className="cta" onClick={onClose}>Done</button>
+          </motion.div>
+        ) : (<motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
         <button type="button" className="close" aria-label="Close" onClick={onClose}>×</button>
         <h2 id="bk-title">Book this cleaning</h2>
         <p className="muted">Pick a day and tell us where to go.</p>
@@ -221,7 +244,8 @@ function BookingModal({ c, home, est, onClose }: { c: Company; home: Home; est: 
           <button type="submit" className="cta">Send booking on WhatsApp</button>
           <p className="muted small">This opens WhatsApp with your booking written out. Nothing is sent until you press send there.</p>
         </form>
-      </div>
-    </div>
+        </motion.div>)}</AnimatePresence>
+      </motion.div>
+    </motion.div>
   );
 }

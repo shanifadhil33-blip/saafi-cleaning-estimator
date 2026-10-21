@@ -238,3 +238,42 @@ input[type=range]{touch-action:none}
 @media (max-width:1023px){.more-lines summary{min-height:44px}}
 .type.on .tname small{display:block}
 @media (max-width:1023px){.summary .cta{display:none}}
+
+/* Motion pass */
+.sum-btn{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;font-weight:500;font-size:16px;text-align:left}
+.more-lines .sum-btn{width:auto;display:inline-flex;font-weight:400;font-size:13px;color:var(--muted);min-height:36px;gap:6px}
+.more-lines .sum-btn[aria-expanded=true]{color:#FFF}
+.chev{width:8px;height:8px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .3s cubic-bezier(.22,1,.36,1);opacity:.7;flex:none}
+.addx .chev{margin-left:8px}
+.sum-btn[aria-expanded=true] .chev{transform:rotate(-135deg) translateY(-2px)}
+.addx .pills{padding-top:6px}
+.tname small{display:block!important}
+.seg.floors button{position:relative;border-color:transparent!important}
+.pill-bg{position:absolute;inset:0;border-radius:999px;z-index:0;border:1px solid #3A3A3A;background:#101010}
+.pill-t{position:relative;z-index:1}
+.stepper output.num{display:inline-flex;justify-content:center;min-width:36px;overflow:hidden;height:24px;align-items:center}
+.sent{text-align:center;padding:24px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.tick{width:48px;height:48px;border-radius:50%;border:1.5px solid #FFF;position:relative;margin-bottom:6px}
+.tick::after{content:"";position:absolute;left:17px;top:11px;width:10px;height:20px;border-right:2px solid #FFF;border-bottom:2px solid #FFF;transform:rotate(45deg)}
+.sent .cta{margin-top:10px}
+.overlay{animation:none}.modal{animation:none;will-change:transform}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.top,.hero,.model,.controls,.summary{animation:rise .5s cubic-bezier(.22,1,.36,1) both}
+.top{animation-delay:.02s}.hero{animation-delay:.08s}.model{animation-delay:.16s}.controls{animation-delay:.22s}.summary{animation-delay:.28s}
+.cta,.chip,.pill,.stepper button,.seg button,.wk,.sum-btn,.close,.type{transition:transform .18s cubic-bezier(.22,1,.36,1),border-color .2s,background .2s,color .2s,box-shadow .2s}
+.cta:active,.chip:active,.pill:active,.stepper button:active,.seg button:active,.wk:active,.sum-btn:active,.close:active{transform:scale(.97)}
+.type:active{transform:scale(.99)}
+@media (hover:hover) and (pointer:fine){
+ .cta:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(255,255,255,.08)}
+ .chip:hover,.pill:hover,.seg button:hover{transform:translateY(-1px);border-color:#555}
+ .stepper button:hover{transform:translateY(-1px)}
+ .type:hover{transform:translateY(-1px);border-color:#4A4A4A}
+ .cta:active,.chip:active,.pill:active,.seg button:active,.stepper button:active{transform:scale(.97)}
+}
+@media (max-width:1023px){.sheet{transition:transform .45s cubic-bezier(.32,.72,0,1)}
+ .top,.hero{transition:max-height .4s cubic-bezier(.32,.72,0,1),opacity .3s ease,padding .4s cubic-bezier(.32,.72,0,1)}
+ .page .model{transition:height .45s cubic-bezier(.32,.72,0,1)}
+ .modal{max-height:96svh}
+ .more-lines .sum-btn{min-height:44px}
+}
+@media (prefers-reduced-motion:reduce){.top,.hero,.model,.controls,.summary{animation:none}}

@@ -19,17 +19,16 @@ for (const [w, h] of [[360, 780], [390, 844], [1440, 900]]) {
     await p.screenshot({ path: `${OUT}/${w}-fade-end.png` }); await f.evaluate((e) => e.scrollTo(0, 0)); }
   const t0 = await tot();
   await p.locator("#area").fill("4000"); await p.waitForTimeout(600); const t1 = await tot(); ok(+t1 > +t0, `${w} slider raises price ${t0}->${t1}`);
-  ok((await p.locator(".banner a").getAttribute("href")).startsWith("https://wa.me/971500000000"), `${w} demo banner links to placeholder`);
   await p.getByRole("group", { name: "Floors" }).getByRole("button", { name: "3" }).click();
   await p.getByRole("button", { name: "More bedrooms" }).click();
   await p.getByRole("button", { name: "More bathrooms" }).click();
   ok((await p.locator(".home-label").innerText()).includes("4,000 sq ft · 2 bed · 2 bath"), `${w} label updates`);
   await p.locator("label.type", { hasText: "Deep" }).click(); await p.waitForTimeout(600);
   const t2 = await tot(); ok(+t2 > +t1, `${w} deep raises price ${t1}->${t2}`);
-  await p.locator(".more-lines summary").click(); ok((await p.locator(".summary").innerText()).includes("Extra floors · 2"), `${w} breakdown has floors`);
+  await p.locator(".more-lines > .sum-btn").click(); ok((await p.locator(".summary").innerText()).includes("Extra floors · 2"), `${w} breakdown has floors`);
   await p.getByRole("button", { name: "Open floors" }).click(); await p.getByRole("button", { name: "Roof" }).click();
   ok(await p.getByRole("button", { name: "Roof" }).getAttribute("aria-pressed") === "false", `${w} roof toggle`);
-  await p.locator(".addx summary").click(); await p.getByRole("button", { name: /^Majlis/ }).click(); await p.getByRole("button", { name: /^Oven/ }).click(); await p.waitForTimeout(600);
+  await p.locator(".addx > .sum-btn").click(); await p.getByRole("button", { name: /^Majlis/ }).click(); await p.getByRole("button", { name: /^Oven/ }).click(); await p.waitForTimeout(600);
   const t3 = await tot(); ok(+t3 > +t2, `${w} extras raise price ${t2}->${t3}`);
   await p.getByRole("switch", { name: /Weekly/ }).click(); await p.waitForTimeout(600);
   const t4 = await tot(); ok(+t4 < +t3 && (await p.locator(".wk").innerText()).includes("you save"), `${w} weekly saves ${t3}->${t4}`);
@@ -49,8 +48,8 @@ for (const [w, h] of [[360, 780], [390, 844], [1440, 900]]) {
   const url = pop ? pop.url() : ""; const txt = url ? (new URL(url).searchParams.get("text") || "") : "";
   ok(url.includes("wa.me") || url.includes("whatsapp"), `${w} WhatsApp opens (${url.slice(0, 40)})`);
   ok(txt.includes("Omar Khalid") && txt.includes("Gate code 4411") && txt.includes("A 3 floor home"), `${w} summary prefilled`);
-  if (pop) await pop.close();
-  await p.keyboard.press("Escape"); ok(await p.locator("[role=dialog]").count() === 0, `${w} Escape closes modal`);
+  if (pop) await pop.close(); ok(await p.getByText("Opening WhatsApp").waitFor({ timeout: 4000 }).then(() => true, () => false), `${w} success state shows`);
+  await p.keyboard.press("Escape"); await p.waitForSelector("[role=dialog]", { state: "detached", timeout: 4000 }).catch(() => {}); ok(await p.locator("[role=dialog]").count() === 0, `${w} Escape closes modal`);
   ok(errs.length === 0, `${w} no page errors ${errs.join("|")}`);
   await ctx.close();
 }
