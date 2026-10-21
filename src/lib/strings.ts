@@ -259,6 +259,7 @@ export const REAL: Record<Lang, any> = {
   en: {
     materials: "Cleaning materials", matBring: "Bring them", matOwn: "I have them", matNote: (m: string) => `${m} per cleaner hour for materials`,
     furnishedQ: "Is the home furnished?", furnished: "Furnished", unfurnished: "Empty",
+    bookShort: "Book",
     crew: (c: number, h: number) => `${c} ${c === 1 ? "cleaner" : "cleaners"}, about ${h} ${h === 1 ? "hour" : "hours"}`,
     range: (a: string, b: string) => `${a} to ${b}`, from: "from",
     approx: "Approximate. The final price is confirmed on WhatsApp.",
@@ -273,6 +274,7 @@ export const REAL: Record<Lang, any> = {
   ar: {
     materials: "مواد التنظيف", matBring: "أحضروها معكم", matOwn: "متوفرة لدي", matNote: (m: string) => `${m} لكل ساعة عمل للمواد`,
     furnishedQ: "هل المنزل مفروش؟", furnished: "مفروش", unfurnished: "فارغ",
+    bookShort: "احجز",
     crew: (c: number, h: number) => `${c === 1 ? "عامل نظافة واحد" : c === 2 ? "عاملا نظافة" : `${c} عمال نظافة`}، حوالي ${h === 1 ? "ساعة" : h === 2 ? "ساعتين" : `${h} ساعات`}`,
     range: (a: string, b: string) => `${a} إلى ${b}`, from: "من",
     approx: "سعر تقريبي. يتم تأكيد السعر النهائي عبر واتساب.",
@@ -287,6 +289,7 @@ export const REAL: Record<Lang, any> = {
   ur: {
     materials: "صفائی کا سامان", matBring: "آپ لے آئیں", matOwn: "میرے پاس ہے", matNote: (m: string) => `سامان کے لیے ${m} فی گھنٹہ فی کلینر`,
     furnishedQ: "کیا گھر میں فرنیچر ہے؟", furnished: "فرنیچر والا", unfurnished: "خالی",
+    bookShort: "بک کریں",
     crew: (c: number, h: number) => `${c} کلینر، تقریباً ${h} گھنٹے`,
     range: (a: string, b: string) => `${a} سے ${b}`, from: "سے شروع",
     approx: "اندازاً قیمت۔ حتمی قیمت واٹس ایپ پر طے ہوگی۔",
@@ -301,6 +304,7 @@ export const REAL: Record<Lang, any> = {
   hi: {
     materials: "सफाई का सामान", matBring: "आप ले आएँ", matOwn: "मेरे पास है", matNote: (m: string) => `सामान के लिए ${m} हर क्लीनर घंटा`,
     furnishedQ: "क्या घर में फर्नीचर है?", furnished: "फर्नीचर वाला", unfurnished: "खाली",
+    bookShort: "बुक करें",
     crew: (c: number, h: number) => `${c} क्लीनर, लगभग ${h} घंटे`,
     range: (a: string, b: string) => `${a} से ${b}`, from: "से शुरू",
     approx: "अंदाज़न रेट। फाइनल रेट WhatsApp पर पक्का होगा।",

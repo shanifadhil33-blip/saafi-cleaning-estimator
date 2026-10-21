@@ -33,6 +33,29 @@ function useCount(v: number) {
   return shown;
 }
 
+function FitPrice({ text }: { text: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useIso(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      if (el.clientWidth < 8) return;
+      const max = 20, min = 12;
+      let size = max;
+      el.style.fontSize = size + "px";
+      while (size > min && el.scrollWidth > el.clientWidth + 1) {
+        size -= 0.5;
+        el.style.fontSize = size + "px";
+      }
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    if (el.parentElement) ro.observe(el.parentElement);
+    return () => ro.disconnect();
+  }, [text]);
+  return <span className="price" data-price ref={ref}>{text}</span>;
+}
 function LangSwitch({ lang, setLang, className }: { lang: Lang; setLang: (l: Lang) => void; className: string }) {
   return (
     <div className={`lang ${className}`} role="group" aria-label="Language">
@@ -135,8 +158,8 @@ export default function Estimator({ company: c }: { company: Company }) {
   const snaps = useCallback(() => {
     const vh = window.innerHeight, bar = barRef.current?.offsetHeight || 76, top = (topRef.current?.offsetHeight || 0) + 8;
     const full = Math.max(top, Math.round(vh * 0.09));
-    /* Language shares the title row, so the default snap takes that row (~52px) and shows more selectors. */
-    const half = Math.round(vh * 0.5) - 52, peek = Math.max(half + 60, Math.round(vh - bar - 150));
+    /* Title row saved ~52px. The shorter booking bar frees about 28px more for the sheet, still leaving the house fully in view. */
+    const half = Math.round(vh * 0.5) - 80, peek = Math.max(half + 60, Math.round(vh - bar - 150));
     return { full, half, peek };
   }, []);
   const apply = useCallback((y: number, animate: boolean) => {
@@ -341,8 +364,12 @@ export default function Estimator({ company: c }: { company: Company }) {
       </div>
 
       <div className={`bar${phone ? " in" : ""}`} id="bar" ref={barRef}>
-        <div className="bar-price"><small>{s.weekly ? `${t.total}${sep}${t.perVisit}` : t.total}</small><span className="price" data-price>{range(price, q.high)}</span><span className="bar-crew">{t.crew(q.cleaners, q.hours)}</span></div>
-        <button type="button" className="btn primary" data-book onClick={openBook}><WaIcon /><span>{t.book}</span></button>
+        <div className="bar-price">
+          <span className="sr">{s.weekly ? `${t.total}${sep}${t.perVisit}` : t.total}</span>
+          <FitPrice text={range(price, q.high)} />
+          <span className="bar-crew">{t.crew(q.cleaners, q.hours)}</span>
+        </div>
+        <button type="button" className="btn primary" data-book onClick={openBook}><WaIcon /><span>{t.bookShort}</span></button>
       </div>
 
       <AnimatePresence>{booking && <Booking key="bk" c={c} t={t} lang={lang} brand={brand} s={s} q={q} money={money} homeLine={homeLine} exName={exName} range={range} phone={phone} origin={booking} onClose={() => setBooking(null)} />}</AnimatePresence>

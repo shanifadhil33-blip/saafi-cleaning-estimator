@@ -319,17 +319,15 @@ html[lang="ur"] .done h3 { font-size: 22px; line-height: 1.9; }
   .price { font-size: 40px; }
 
   .bar {
-    display: flex; position: fixed; z-index: 40; inset-inline: 0; bottom: 0; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)) 18px;
+    display: flex; position: fixed; z-index: 40; inset-inline: 0; bottom: 0; align-items: center; justify-content: space-between; gap: 8px;
+    padding-block: 6px calc(6px + env(safe-area-inset-bottom, 0px)); padding-inline: 12px 10px;
     background: rgba(22, 22, 22, 0.94); border-top: 1px solid var(--line); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
     transform: translateY(110%); transition: transform 600ms var(--ease) 300ms;
   }
   .bar.in { transform: none; }
-  .bar-price { min-width: 0; }
-  .bar-price small { display: block; color: var(--faint); font-size: 12px; line-height: 1.2; }
-  html[lang="ur"] .bar-price small { line-height: 1.8; font-size: 11px; }
-  .bar-price .price { font-size: 31px; line-height: 1.05; }
-  .bar .btn { height: 52px; padding: 0 20px; font-size: 14.5px; }
+  .bar-price { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  .bar-price .price { display: block; max-width: 100%; font-size: 20px; line-height: 1.1; overflow: hidden; }
+  .bar .btn { flex: 0 0 auto; height: 44px; min-width: 44px; padding: 0 14px; font-size: 14px; }
 
   .modal { place-items: end stretch; padding: 0; }
   .dialog { width: 100%; max-height: 92dvh; border-radius: 28px 28px 0 0; border-bottom: 0; }
@@ -341,9 +339,7 @@ html[lang="ur"] .done h3 { font-size: 22px; line-height: 1.9; }
   .two { gap: 10px; }
   .stepper { padding: 0 4px; }
   .step-btn { width: 36px; height: 36px; }
-  .bar .btn { padding: 0 16px; }
-  .bar .btn svg { display: none; }
-  .bar-price .price { font-size: 28px; }
+  .bar .btn { padding: 0 12px; }
   .lang button { padding: 6px 7px; font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -384,10 +380,10 @@ html[lang="ur"] .extra .name small{line-height:1.9}
 .sub-field{padding-top:16px}
 .sum-short .crew b{color:var(--text);font-weight:500}
 .sum-short{flex-direction:column;gap:2px}
-.bar-crew{display:block;color:var(--muted);font-size:12px;line-height:1.3}
-html[lang="ur"] .bar-crew{line-height:1.9;font-size:11px}
-.bar .price{font-size:26px!important}
-@media (max-width:380px){.bar .price{font-size:23px!important}.bar .btn span{font-size:13.5px}}
+.bar-crew{display:block;color:var(--muted);font-size:12px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html[lang="ur"] .bar-crew{line-height:1.35;font-size:12px}
+.bar .price{font-size:20px}
+@media (max-width:380px){.bar .btn span{font-size:13.5px}}
 .price-line .price{font-size:40px}
 .chips .chip:disabled{opacity:.35;cursor:not-allowed}
 .chips.times{gap:6px}.chips.times .chip{height:40px;padding:0 14px;font-variant-numeric:tabular-nums}
@@ -420,8 +416,9 @@ a, label, input, textarea, [role="radio"], [role="button"] { -webkit-tap-highlig
 .chip, .chips.times .chip { height: 44px; min-height: 44px; }
 @media (max-width: 820px) {
   .lang button { min-height: 36px; }
-  .hint, .note, .type-rate, .sum-short, .extra .amt, .stage-head p, .bar-price small, .bar-crew, .err, .extra .name small, .per, .num-box span, .row-toggle .meta { font-size: 14px !important; }
-  html[lang="ur"] .hint, html[lang="ur"] .note, html[lang="ur"] .stage-head p, html[lang="ur"] .bar-crew, html[lang="ur"] .extra .name small { font-size: 14px !important; }
+  .hint, .note, .type-rate, .sum-short, .extra .amt, .stage-head p, .err, .extra .name small, .per, .num-box span, .row-toggle .meta { font-size: 14px !important; }
+  html[lang="ur"] .hint, html[lang="ur"] .note, html[lang="ur"] .stage-head p, html[lang="ur"] .extra .name small { font-size: 14px !important; }
+  .bar .bar-crew { font-size: 12px !important; line-height: 1.25 !important; }
 }
 /* No press transforms on touch for cards and rows (the thumb scrolls over them) */
 @media (hover: none) { .type:active, .extra:active, .row-toggle:active, .kind:active { transform: none; } }
@@ -429,3 +426,5 @@ a, label, input, textarea, [role="radio"], [role="button"] { -webkit-tap-highlig
 .unit button::after{inset:-10px -2px}
 input[type="range"]{height:44px}
 .unit button{min-width:44px}
+/* Next.js dev indicator. Production builds do not inject it. This keeps it off if a dev server is what is on screen. */
+nextjs-portal { display: none !important; }

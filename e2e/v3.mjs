@@ -15,7 +15,7 @@ for (const [w, h] of [[360, 780], [390, 844], [1440, 900]]) for (const L of ["en
   ok(!(await p.evaluate(() => /Saafi|Noor/.test(document.body.innerText + document.title))), `${tag} no brand name`);
   if (w < 800) {
     const r = await p.evaluate(() => ({ sheet: document.querySelector(".sheet").getBoundingClientRect().top / innerHeight, head: document.querySelector(".stage-head").getBoundingClientRect().bottom }));
-    ok(r.sheet > 0.40 && r.sheet < 0.48, `${tag} sheet starts higher (${r.sheet.toFixed(2)})`);
+    ok(r.sheet > 0.37 && r.sheet < 0.43, `${tag} sheet starts higher (${r.sheet.toFixed(2)})`);
     const small = await p.evaluate(() => [...document.querySelectorAll(".sheet button, .bar button")].filter((e) => { const r = e.getBoundingClientRect(); return e.offsetParent && r.top < innerHeight && r.bottom > 0 && r.height < 40 && !e.closest(".unit") && !e.closest(".link-btn") && !e.classList.contains("handle"); }).length);
     ok(small === 0, `${tag} visible tap targets 40px or more (${small} small)`);
   }
