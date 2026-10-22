@@ -435,8 +435,8 @@ nextjs-portal { display: none !important; }
   background: var(--bg); color: var(--text);
   -webkit-overflow-scrolling: touch;
 }
-.mkt-wrap { width: min(720px, 100%); margin: 0 auto; padding: calc(22px + env(safe-area-inset-top, 0px)) 0 0; }
-.mkt-top, .mkt h1, .mkt .lead, .mkt fieldset, .mkt-form > .mkt-check, .mkt-form > .err, .mkt-regions, .mkt-done { padding-inline: 20px; }
+/* 20px matches the GCC phone sheet: 18px on the sheet plus 2px on the intro. One gutter for the whole page. */
+.mkt-wrap { width: min(720px, 100%); margin: 0 auto; padding: calc(22px + env(safe-area-inset-top, 0px)) 20px 0; }
 .mkt-regions { padding-bottom: 28px; }
 .mkt-top {
   position: sticky; top: 0; z-index: 4; display: flex; flex-wrap: wrap; gap: 10px;
@@ -502,7 +502,7 @@ nextjs-portal { display: none !important; }
 .mkt .lines { margin-top: 4px; }
 .mkt-bar {
   position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin: 28px 0 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+  margin: 28px -20px 0; padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
   background: rgba(22, 22, 22, 0.94); border-top: 1px solid var(--line);
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
 }

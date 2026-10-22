@@ -10,6 +10,12 @@ const areas = { "/us": "10001", "/ca": "M5V 2T6", "/uk": "SW1A 1AA" };
 const cases = [["/us", "en"], ["/us", "es"], ["/ca", "en"], ["/ca", "fr"], ["/ca", "es"], ["/uk", "en"]];
 
 async function total(p) { return Number(await p.locator(".mkt").getAttribute("data-total")); }
+async function box(p, sel) {
+  return p.locator(sel).first().evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { l: Math.round(r.left), r: Math.round(r.right) };
+  });
+}
 
 for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   const ctx = await b.newContext({ viewport: { width: w, height: h }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
@@ -27,6 +33,19 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   ok(!/Saafi|Darwin|Noor/i.test(text + await p.title()), `${tag} no brand`);
   if (path !== "/uk") ok(!/WhatsApp/i.test(text), `${tag} no WhatsApp`);
   ok(await p.evaluate(() => { const el = document.querySelector(".mkt"); return el.scrollWidth <= el.clientWidth + 1; }), `${tag} no sideways scroll`);
+  const h1 = await box(p, "h1");
+  const input = await box(p, "#areaCode");
+  const card = await box(p, ".type");
+  const terms = await box(p, ".mkt-check");
+  const top = await box(p, ".mkt-top");
+  const swL = await box(p, ".mkt-top .lang");
+  const swR = await box(p, ".mkt-top .lang:last-child");
+  const pageW = await p.evaluate(() => document.querySelector(".mkt").clientWidth);
+  const gutter = h1.l;
+  ok(gutter === 20 && pageW - h1.r === 20, `${tag} heading gutter 20`);
+  ok([input, card, terms, top].every((b) => b.l === gutter && b.r === h1.r), `${tag} shared side padding`);
+  ok(swL.l === gutter, `${tag} language switch shares the gutter`);
+  if (await p.locator(".mkt-top .lang").count() > 1) ok(swR.r === h1.r, `${tag} currency switch shares the gutter`);
   const once = await total(p);
   await p.locator("[data-freq=weekly]").click();
   const weekly = await total(p);
@@ -62,6 +81,10 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   const wa = await p.locator("[data-contact=whatsapp]").count();
   ok(path === "/uk" ? wa === 1 && (await p.locator("[data-contact=whatsapp]").getAttribute("href")).includes("wa.me/445550100") : wa === 0, `${tag} WhatsApp only in the UK`);
   const doneText = await p.locator(".mkt").innerText();
+  const doneLeft = await p.locator(".mkt-done h1, .mkt-done .done-mark, .mkt-done .lead, .mkt-done .hint, .mkt-done .btn").evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().left)));
+  const doneRight = await p.locator(".mkt-done h1, .mkt-done .btn").evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().right)));
+  ok(Math.max(...doneLeft) - Math.min(...doneLeft) <= 1, `${tag} confirmation lines align`);
+  ok(doneRight.every((r) => r === h1.r), `${tag} confirmation shares the gutter`);
   ok(!/[—–-]/.test(doneText), `${tag} confirmation has no dashes`);
   ok(errs.length === 0, `${tag} no page errors ${errs.join("|")}`);
   await ctx.close();
