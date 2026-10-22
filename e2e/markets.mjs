@@ -146,6 +146,74 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   await p.close();
 }
 
+const shots = "/opt/cursor/artifacts";
+const pages = [["/", "home"], ["/us", "us"], ["/ca", "ca"], ["/uk", "uk"], ["/c/saafi", "saafi"]];
+for (const [w, h] of [[1280, 800], [1440, 900], [1920, 1080]]) for (const [path, name] of pages) {
+  const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+  const p = await ctx.newPage();
+  const errs = [];
+  p.on("pageerror", (e) => errs.push(e.message));
+  const tag = `${w}x${h} ${path}`;
+  await p.goto(`${BASE}${path}`);
+  await p.waitForSelector("canvas");
+  await p.evaluate(() => document.fonts.ready);
+  await p.waitForFunction(() => {
+    const sheet = document.querySelector(".sheet");
+    const stage = document.querySelector(".stagecol");
+    if (!sheet || !stage) return false;
+    const s = sheet.getBoundingClientRect();
+    const t = stage.getBoundingClientRect();
+    return s.width > 300 && t.width > s.width && s.height > 400;
+  });
+  await p.waitForTimeout(1600);
+  const desk = await p.evaluate(() => {
+    const box = (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, btm: b.bottom }; };
+    const sheet = box(document.querySelector(".sheet"));
+    const stage = box(document.querySelector(".stagecol"));
+    const book = box(document.querySelector(".summary .book-btn"));
+    const price = box(document.querySelector(".summary .price"));
+    const h1 = box(document.querySelector("h1"));
+    const canvas = box(document.querySelector("canvas"));
+    const kind = box(document.querySelector(".kind"));
+    const scroll = document.querySelector(".sheet-scroll");
+    const doc = document.documentElement;
+    const cs = getComputedStyle(document.querySelector(".sheet"));
+    const ih = window.innerHeight, iw = window.innerWidth;
+    return {
+      canvas, sheetW: Math.round(sheet.w),
+      pageOverflow: doc.scrollHeight > ih + 2 || doc.scrollWidth > iw + 2,
+      sideBySide: sheet.r <= stage.x + 2 || stage.r <= sheet.x + 2,
+      stageWider: stage.w > sheet.w + 40,
+      sheetIn: sheet.y >= -1 && sheet.btm <= ih + 2 && sheet.x >= -1 && sheet.r <= iw + 2,
+      stageIn: stage.y >= -1 && stage.btm <= ih + 2 && stage.x >= -1 && stage.r <= iw + 2,
+      bookIn: book.w > 40 && book.h >= 48 && book.y >= 0 && book.btm <= ih + 1 && book.x >= 0 && book.r <= iw + 1,
+      priceIn: price.w > 20 && price.y >= 0 && price.btm <= ih + 1,
+      h1In: h1.y >= 0 && h1.btm <= ih && h1.h >= 28,
+      kindIn: kind.y >= sheet.y && kind.btm <= sheet.btm,
+      canvasBig: canvas.w >= 480 && canvas.h >= 480,
+      panelOk: sheet.w >= 420 && sheet.w <= 560,
+      segH: document.querySelector(".seg").getBoundingClientRect().height,
+      scrolls: scroll.scrollHeight > scroll.clientHeight + 20 && scroll.clientHeight > 400,
+      hScroll: scroll.scrollWidth <= scroll.clientWidth + 1,
+      phoneChrome: getComputedStyle(document.querySelector(".bar")).display === "none" && getComputedStyle(document.querySelector(".handle")).display === "none" && cs.position !== "fixed",
+      radius: parseFloat(cs.borderRadius),
+      mono: getComputedStyle(document.body).backgroundColor === "rgb(13, 13, 13)",
+    };
+  });
+  ok(!desk.pageOverflow, `${tag} page fits the viewport`);
+  ok(desk.sideBySide && desk.stageWider, `${tag} house is the large side of a split`);
+  ok(desk.sheetIn && desk.stageIn, `${tag} sheet and stage stay on screen`);
+  ok(desk.bookIn && desk.priceIn && desk.h1In && desk.kindIn, `${tag} heading, price, book, and home type stay on screen`);
+  ok(desk.canvasBig, `${tag} house canvas is large (${Math.round(desk.canvas.w)}x${Math.round(desk.canvas.h)})`);
+  ok(desk.panelOk, `${tag} sheet panel is a steady width (${desk.sheetW})`);
+  ok(desk.segH >= 48 && desk.radius >= 20, `${tag} controls stay rounded and comfortable`);
+  ok(desk.scrolls && desk.hScroll && desk.phoneChrome && desk.mono, `${tag} the sheet scrolls inside a dark panel`);
+  if (path !== "/" && path !== "/c/saafi") ok(!/Saafi|Darwin|Noor/i.test(await p.evaluate(() => document.title + "\n" + document.body.innerText)), `${tag} no brand`);
+  await p.screenshot({ path: `${shots}/desktop-${w}x${h}-${name}.png` });
+  ok(errs.length === 0, `${tag} no page errors ${errs.join("|")}`);
+  await ctx.close();
+}
+
 await b.close();
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);
