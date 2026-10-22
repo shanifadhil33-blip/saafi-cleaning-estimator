@@ -3,6 +3,7 @@ import type { HomeKind } from "./houseLayout";
 export type Lang = "en" | "es" | "fr";
 export type Region = "us" | "ca" | "uk";
 export type Freq = "once" | "weekly" | "biweekly" | "monthly";
+export type BookChannel = "sms" | "whatsapp" | "email";
 export type AreaStatus = "empty" | "partial" | "invalid" | "out" | "in";
 
 export interface ServiceCfg {
@@ -49,7 +50,7 @@ export interface Market {
   rooms: Record<string, RoomCfg>;
   entryOrder: string[];
   parkingOrder: string[];
-  contact: { phoneDisplay: string; phoneTel: string; email: string; whatsapp: string };
+  contact: { phoneDisplay: string; phoneTel: string; email: string; whatsapp: string; book: BookChannel; also: BookChannel[] };
   payment: "card" | "after";
   showTax: boolean;
   showTip: boolean;
@@ -73,6 +74,9 @@ export interface MState {
   products: boolean;
   weekend: boolean;
   tip: number;
+  sqft: number;
+  floors: number;
+  maid: boolean;
 }
 
 export interface QuoteLine { id: string; qty: number; cents: number }
@@ -89,6 +93,73 @@ export interface Quote {
   hours: number;
   fromCents: number;
   hourly: boolean;
+}
+
+export interface HomeSpec {
+  min: number;
+  max: number;
+  sqft: number;
+  atBeds: number;
+  floors: [number, number];
+  defFloors: number;
+  beds: [number, number];
+  baths: [number, number];
+  visual: HomeKind;
+}
+
+const SPECS: Record<Market["id"], Record<string, HomeSpec>> = {
+  us: {
+    house: { min: 1200, max: 6000, sqft: 2200, atBeds: 2, floors: [1, 3], defFloors: 2, beds: [2, 6], baths: [1, 5], visual: "villa" },
+    apartment: { min: 400, max: 2200, sqft: 900, atBeds: 2, floors: [1, 1], defFloors: 1, beds: [0, 4], baths: [1, 3], visual: "apartment" },
+    condo: { min: 500, max: 2800, sqft: 1100, atBeds: 2, floors: [1, 2], defFloors: 1, beds: [1, 4], baths: [1, 4], visual: "apartment" },
+    townhouse: { min: 1000, max: 4000, sqft: 1800, atBeds: 2, floors: [2, 3], defFloors: 2, beds: [2, 5], baths: [1, 4], visual: "townhouse" },
+  },
+  ca: {
+    house: { min: 1200, max: 6000, sqft: 2200, atBeds: 2, floors: [1, 3], defFloors: 2, beds: [2, 6], baths: [1, 5], visual: "villa" },
+    apartment: { min: 400, max: 2200, sqft: 900, atBeds: 2, floors: [1, 1], defFloors: 1, beds: [0, 4], baths: [1, 3], visual: "apartment" },
+    condo: { min: 500, max: 2800, sqft: 1100, atBeds: 2, floors: [1, 2], defFloors: 1, beds: [1, 4], baths: [1, 4], visual: "apartment" },
+    townhouse: { min: 1000, max: 4000, sqft: 1800, atBeds: 2, floors: [2, 3], defFloors: 2, beds: [2, 5], baths: [1, 4], visual: "townhouse" },
+  },
+  uk: {
+    flat: { min: 350, max: 1600, sqft: 750, atBeds: 2, floors: [1, 1], defFloors: 1, beds: [0, 3], baths: [1, 2], visual: "apartment" },
+    terraced: { min: 700, max: 2200, sqft: 1100, atBeds: 2, floors: [2, 3], defFloors: 2, beds: [1, 5], baths: [1, 3], visual: "townhouse" },
+    semi: { min: 900, max: 3200, sqft: 1500, atBeds: 2, floors: [2, 3], defFloors: 2, beds: [2, 5], baths: [1, 4], visual: "villa" },
+    detached: { min: 1400, max: 6000, sqft: 2400, atBeds: 2, floors: [1, 3], defFloors: 2, beds: [2, 6], baths: [1, 5], visual: "villa" },
+  },
+};
+
+const TUNE: Record<Market["id"], { per100: number; perFloor: number; maid: number; materials: number }> = {
+  us: { per100: 5, perFloor: 25, maid: 40, materials: 20 },
+  ca: { per100: 6, perFloor: 30, maid: 45, materials: 22 },
+  uk: { per100: 2, perFloor: 12, maid: 20, materials: 0 },
+};
+
+export function homeSpec(id: Market["id"], home: string): HomeSpec {
+  const table = SPECS[id];
+  return table[home] ?? Object.values(table)[0];
+}
+export function sqftFor(spec: HomeSpec, beds: number) {
+  const snapped = Math.round((spec.sqft + (beds - spec.atBeds) * 150) / 50) * 50;
+  return Math.max(spec.min, Math.min(spec.max, snapped));
+}
+export function sizeExtraDollars(m: Market, s: MState) {
+  const spec = homeSpec(m.id, s.home);
+  const tune = TUNE[m.id];
+  const expected = sqftFor(spec, s.beds);
+  const sq = s.sqft > 0 ? s.sqft : expected;
+  const floors = s.floors || spec.defFloors;
+  let extra = Math.round((sq - expected) / 100) * tune.per100;
+  extra += (floors - spec.defFloors) * tune.perFloor;
+  if (s.products && tune.materials) extra += tune.materials;
+  return extra;
+}
+export function tuneOf(id: Market["id"]) { return TUNE[id]; }
+
+export function channelHref(m: Market, channel: BookChannel, subject: string, body: string) {
+  const text = encodeURIComponent(body);
+  if (channel === "sms") return `sms:${m.contact.phoneTel}?body=${text}`;
+  if (channel === "whatsapp") return `https://wa.me/${m.contact.whatsapp}?text=${text}`;
+  return `mailto:${m.contact.email}?subject=${encodeURIComponent(subject)}&body=${text}`;
 }
 
 export function suggestedHours(beds: number, roomIds: string[], rooms: Market["rooms"]) {
@@ -120,6 +191,9 @@ export function initialState(m: Market): MState {
     products: m.defaultProducts,
     weekend: false,
     tip: 0,
+    sqft: sqftFor(homeSpec(m.id, m.defaultHome), m.defaultBeds),
+    floors: homeSpec(m.id, m.defaultHome).defFloors,
+    maid: false,
   };
 }
 
@@ -155,9 +229,10 @@ export function quote(m: Market, s: MState): Quote {
   let hours = 0;
   let weekend = 0;
   let products = 0;
+  const extra = sizeExtraDollars(m, s);
   if (svc.mode === "hourly") {
     hours = snapHours(Math.max(m.minHours, s.hours), m.hourChoices);
-    cleaning = Math.round(svc.hourly * hours * 100);
+    cleaning = Math.round((svc.hourly * hours + extra) * 100);
     if (s.weekend && m.weekendPerHour) weekend = Math.round(m.weekendPerHour * hours * 100);
     if (s.products && m.productsPerHour) products = Math.round(m.productsPerHour * hours * 100);
   } else {
@@ -166,7 +241,8 @@ export function quote(m: Market, s: MState): Quote {
       + s.baths * svc.perBath
       + (m.homes[s.home] || 0)
       + (m.sizes[s.size] || 0)
-      + s.rooms.reduce((a, id) => a + (m.rooms[id]?.price || 0), 0);
+      + s.rooms.reduce((a, id) => a + (m.rooms[id]?.price || 0), 0)
+      + extra;
     cleaning = Math.round(raw * (1 + (m.conditions[s.condition] || 0)) * 100);
   }
   const discountCents = Math.round(cleaning * pct);
@@ -198,11 +274,22 @@ export function quote(m: Market, s: MState): Quote {
   };
 }
 
-export function formatMoney(cents: number, currency: Market["currency"]) {
+const GROUP = /[\u202f\u00a0\u2009]/g;
+const localeOf = (lang: Lang) => (lang === "fr" ? "fr-CA" : lang === "es" ? "es-US" : "en-US");
+
+/** Grouped number for the active language. French uses a space, as in 2 200. */
+export function formatCount(n: number, lang: Lang = "en") {
+  return new Intl.NumberFormat(localeOf(lang), { maximumFractionDigits: 0 }).format(Math.round(n)).replace(GROUP, " ");
+}
+
+export function formatMoney(cents: number, currency: Market["currency"], lang: Lang = "en") {
   const v = Math.abs(Math.round(cents));
   const whole = Math.floor(v / 100);
   const frac = v % 100;
-  const num = `${whole.toLocaleString("en-US")}${frac ? "." + String(frac).padStart(2, "0") : ""}`;
+  const num = new Intl.NumberFormat(localeOf(lang), {
+    minimumFractionDigits: frac ? 2 : 0,
+    maximumFractionDigits: frac ? 2 : 0,
+  }).format(whole + frac / 100).replace(GROUP, " ");
   return currency === "GBP" ? `£${num}` : `${currency} ${num}`;
 }
 

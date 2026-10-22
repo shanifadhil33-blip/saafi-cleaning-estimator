@@ -15,7 +15,7 @@
     "airbnb": { "mode": "rooms", "base": 95, "perBed": 34, "perBath": 28, "hourly": 0, "discount": true },
     "hourly": { "mode": "hourly", "base": 0, "perBed": 0, "perBath": 0, "hourly": 60, "discount": true }
   },
-  "homeOrder": ["house", "condo", "townhouse", "apartment"],
+  "homeOrder": ["house", "apartment", "condo", "townhouse"],
   "homes": { "house": 0, "apartment": 0, "condo": 0, "townhouse": 18 },
   "defaultHome": "house",
   "beds": [0, 1, 2, 3, 4, 5, 6],
@@ -55,7 +55,9 @@
     "phoneDisplay": "+1 555 0100",
     "phoneTel": "+15550100",
     "email": "hello@example.com",
-    "whatsapp": ""
+    "whatsapp": "",
+    "book": "sms",
+    "also": ["email"]
   },
   "payment": "card",
   "showTax": true,

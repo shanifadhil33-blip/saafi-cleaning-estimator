@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import Estimator from "@/components/Estimator";
-import { defaultCompany } from "@/lib/companies";
 import { markets } from "@/lib/markets";
 
+const title = "Price your home cleaning";
+const description = "Bedrooms, bathrooms, and home size, with a live price. Text or email to book.";
+
 export const metadata: Metadata = {
-  title: "Price your home cleaning",
-  description: "Bedrooms and bathrooms, a live price, then call, text, or email.",
+  title,
+  description,
+  openGraph: { title, description },
 };
 
 export default function Page() {
-  return <Estimator company={defaultCompany} market={markets.us} />;
+  return <Estimator market={markets.us} />;
 }

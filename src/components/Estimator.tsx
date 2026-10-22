@@ -564,7 +564,7 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
 }
 
 /** GCC home page, or the same house, sheet, and booking bar with a US, Canada, or UK config. */
-export default function Estimator({ company, market }: { company: Company; market?: Market }) {
+export default function Estimator({ company, market }: { company?: Company; market?: Market }) {
   if (market) return <MarketExperience market={market} />;
-  return <GccEstimator company={company} />;
+  return <GccEstimator company={company as Company} />;
 }

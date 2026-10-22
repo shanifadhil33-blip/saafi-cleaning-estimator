@@ -5,7 +5,7 @@ const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args
 let fail = 0;
 const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fail++; };
 const titles = { en: "Price your home cleaning", es: "Calcula el precio de la limpieza", fr: "Estimez le prix du ménage" };
-const homes = { "/us": ["house", "condo", "townhouse", "apartment"], "/ca": ["house", "condo", "townhouse", "apartment"], "/uk": ["flat", "terraced", "semi", "detached"] };
+const homes = { "/us": ["house", "apartment", "condo", "townhouse"], "/ca": ["house", "apartment", "condo", "townhouse"], "/uk": ["flat", "terraced", "semi", "detached"] };
 const areas = { "/us": "10001", "/ca": "M5V 2T6", "/uk": "SW1A 1AA" };
 const cases = [["/us", "en"], ["/us", "es"], ["/ca", "en"], ["/ca", "fr"], ["/uk", "en"]];
 
@@ -40,7 +40,34 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
     const labels = await p.locator(".lang button").evaluateAll((els) => [...new Set(els.map((el) => el.textContent.trim()))]);
     ok(labels.join(",") === "EN,FR", `${tag} English and French only (${labels.join(",")})`);
   }
-  if (path === "/uk") ok((await p.locator("#homeSub").innerText()).startsWith("3 hours"), `${tag} hours caption`);
+  ok(await p.locator("#sqftRange").count() === 1 && await p.locator("#floorsSeg").count() === 1 && await p.locator("#bedsLbl").count() === 1, `${tag} size slider, floors, bedrooms`);
+  const sub = await p.locator("#homeSub").evaluate((el) => el.textContent.replace(/\s+/g, " "));
+  if (path === "/uk") ok(/sq ft|pi²/.test(sub), `${tag} size caption`);
+  if (L === "en") ok(/\dBR/.test(sub) && /bath/.test(sub), `${tag} bedroom and bathroom labels`);
+  if (L === "es") ok(/dorm/.test(sub) && /baño/.test(sub), `${tag} bedroom and bathroom labels`);
+  if (L === "fr") ok(/\d ch\b/.test(sub) && /sdb/.test(sub) && /2 200/.test(sub), `${tag} bedroom and bathroom labels`);
+  const captionClear = await p.evaluate(() => {
+    const sub = document.querySelector("#homeSub");
+    const sheet = document.querySelector("#sheet");
+    if (!sub || !sheet) return false;
+    const line = parseFloat(getComputedStyle(sub).lineHeight) || 16;
+    const box = sub.getBoundingClientRect();
+    return box.height / line <= 2.2 && box.bottom <= sheet.getBoundingClientRect().top - 8;
+  });
+  ok(captionClear, `${tag} caption fits above the sheet`);
+  ok(await p.locator(".extra.maid").count() === 0, `${tag} no maid room`);
+  const inset = await p.locator("#freqSeg button").evaluateAll((els) => els.length === 4 && els.every((el) => {
+    const r = el.getBoundingClientRect();
+    return el.scrollWidth <= el.clientWidth + 1 && r.left >= 16 && r.right <= window.innerWidth - 16;
+  }));
+  ok(inset, `${tag} frequency stays inside the side padding`);
+  const beforeSlide = await total(p);
+  await p.locator("#sqftRange").evaluate((el) => {
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+    set.call(el, el.max);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  ok((await total(p)) !== beforeSlide, `${tag} slider changes the price`);
   ok(!(/[—–-]/.test(text)), `${tag} no dashes in copy`);
   ok(!/Saafi|Darwin|Noor/i.test(text + await p.title()), `${tag} no brand`);
   if (path !== "/uk") ok(!/WhatsApp/i.test(text), `${tag} no WhatsApp`);
@@ -57,15 +84,14 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   await p.locator("[data-freq=monthly]").click();
   const mo = await total(p);
   ok(Math.abs(mo - (once - Math.round(once * 0.1))) <= 1, `${tag} monthly 10%`);
-  const sizeBtn = path === "/uk" ? "[aria-labelledby='hoursLbl'] button" : "[aria-labelledby='bedsLbl'] button";
-  await p.locator(sizeBtn).last().click();
+  await p.locator("[aria-labelledby='bedsLbl'] button").last().click();
   ok((await total(p)) !== mo, `${tag} size changes the price`);
   const before = await total(p);
   await p.locator(".row-toggle").click();
   await p.locator("[data-k=oven]").click();
   ok((await total(p)) > before, `${tag} add on raises the price`);
   await p.locator("[data-v=move], [data-v=oneoff]").first().click();
-  ok(await p.locator("[data-freq=weekly]").count() === 0, `${tag} one off clean has no recurring discount`);
+  ok(await p.locator("[data-freq=weekly]").isDisabled(), `${tag} one off clean has no recurring discount`);
   await p.locator(".bar .btn").click();
   await p.waitForSelector("[role=dialog]");
   await p.locator("#sendBtn").click();
@@ -74,6 +100,8 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   await p.locator("#fArea").fill(areas[path]);
   await p.locator("[data-day=tomorrow]").click();
   await p.locator(".chips.times .chip:not([disabled])").first().click();
+  await p.locator("#sendBtn").evaluate((el) => el.addEventListener("click", (e) => e.preventDefault(), true));
+  var sendHref = await p.locator("#sendBtn").getAttribute("href");
   await p.locator("#sendBtn").click();
   await p.waitForSelector("#viewDone");
   const drawn = await p.waitForFunction(() => {
@@ -82,12 +110,18 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   }, null, { timeout: 3000 }).then(() => true).catch(() => false);
   const dash = await p.locator(".done-mark path").evaluate((el) => parseFloat(getComputedStyle(el).strokeDashoffset));
   ok(drawn && dash < 1, `${tag} confirmation tick is drawn (${dash})`);
-  const tel = await p.locator("[data-contact=tel]").getAttribute("href");
-  const sms = await p.locator("[data-contact=sms]").getAttribute("href");
-  const mail = await p.locator("[data-contact=mailto]").getAttribute("href");
-  ok(tel.includes("555") && sms.includes("555") && mail.includes("hello@example.com"), `${tag} placeholder call text email`);
-  const wa = await p.locator("[data-contact=whatsapp]").count();
-  ok(path === "/uk" ? wa === 1 && (await p.locator("[data-contact=whatsapp]").getAttribute("href")).includes("wa.me/445550100") : wa === 0, `${tag} WhatsApp only in the UK`);
+  const send = sendHref;
+  const mail = await p.locator("[data-contact=email]").getAttribute("href");
+  ok(mail.includes("hello@example.com"), `${tag} email alternative`);
+  if (path === "/uk") {
+    ok(send.startsWith("https://wa.me/445550100?text="), `${tag} Book sends WhatsApp`);
+    const sms = await p.locator("[data-contact=sms]").getAttribute("href");
+    ok(sms.startsWith("sms:+445550100?body=") && (await p.locator("[data-contact=whatsapp]").count()) === 0, `${tag} text alternative, no second WhatsApp`);
+  } else {
+    ok(send.startsWith("sms:+15550100?body="), `${tag} Book sends a text`);
+    ok((await p.locator("[data-contact=sms]").count()) === 0 && !/WhatsApp/i.test(await p.locator("#viewDone").innerText()), `${tag} no WhatsApp alternative`);
+  }
+  ok(!/saafi/i.test(await p.evaluate(() => document.title + "\n" + document.body.innerText + "\n" + [...document.querySelectorAll("meta")].map((m) => m.content || "").join("\n"))), `${tag} no brand in the page`);
   ok(!/[—–-]/.test(await p.locator("#viewDone").innerText()), `${tag} confirmation has no dashes`);
   ok(errs.length === 0, `${tag} no page errors ${errs.join("|")}`);
   await ctx.close();
@@ -110,6 +144,74 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   await p.waitForSelector("canvas");
   ok((await p.locator("h1").innerText()).includes("Price your"), "company page still the GCC estimator");
   await p.close();
+}
+
+const shots = "/opt/cursor/artifacts";
+const pages = [["/", "home"], ["/us", "us"], ["/ca", "ca"], ["/uk", "uk"], ["/c/saafi", "saafi"]];
+for (const [w, h] of [[1280, 800], [1440, 900], [1920, 1080]]) for (const [path, name] of pages) {
+  const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+  const p = await ctx.newPage();
+  const errs = [];
+  p.on("pageerror", (e) => errs.push(e.message));
+  const tag = `${w}x${h} ${path}`;
+  await p.goto(`${BASE}${path}`);
+  await p.waitForSelector("canvas");
+  await p.evaluate(() => document.fonts.ready);
+  await p.waitForFunction(() => {
+    const sheet = document.querySelector(".sheet");
+    const stage = document.querySelector(".stagecol");
+    if (!sheet || !stage) return false;
+    const s = sheet.getBoundingClientRect();
+    const t = stage.getBoundingClientRect();
+    return s.width > 300 && t.width > s.width && s.height > 400;
+  });
+  await p.waitForTimeout(1600);
+  const desk = await p.evaluate(() => {
+    const box = (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, btm: b.bottom }; };
+    const sheet = box(document.querySelector(".sheet"));
+    const stage = box(document.querySelector(".stagecol"));
+    const book = box(document.querySelector(".summary .book-btn"));
+    const price = box(document.querySelector(".summary .price"));
+    const h1 = box(document.querySelector("h1"));
+    const canvas = box(document.querySelector("canvas"));
+    const kind = box(document.querySelector(".kind"));
+    const scroll = document.querySelector(".sheet-scroll");
+    const doc = document.documentElement;
+    const cs = getComputedStyle(document.querySelector(".sheet"));
+    const ih = window.innerHeight, iw = window.innerWidth;
+    return {
+      canvas, sheetW: Math.round(sheet.w),
+      pageOverflow: doc.scrollHeight > ih + 2 || doc.scrollWidth > iw + 2,
+      sideBySide: sheet.r <= stage.x + 2 || stage.r <= sheet.x + 2,
+      stageWider: stage.w > sheet.w + 40,
+      sheetIn: sheet.y >= -1 && sheet.btm <= ih + 2 && sheet.x >= -1 && sheet.r <= iw + 2,
+      stageIn: stage.y >= -1 && stage.btm <= ih + 2 && stage.x >= -1 && stage.r <= iw + 2,
+      bookIn: book.w > 40 && book.h >= 48 && book.y >= 0 && book.btm <= ih + 1 && book.x >= 0 && book.r <= iw + 1,
+      priceIn: price.w > 20 && price.y >= 0 && price.btm <= ih + 1,
+      h1In: h1.y >= 0 && h1.btm <= ih && h1.h >= 28,
+      kindIn: kind.y >= sheet.y && kind.btm <= sheet.btm,
+      canvasBig: canvas.w >= 480 && canvas.h >= 480,
+      panelOk: sheet.w >= 420 && sheet.w <= 560,
+      segH: document.querySelector(".seg").getBoundingClientRect().height,
+      scrolls: scroll.scrollHeight > scroll.clientHeight + 20 && scroll.clientHeight > 400,
+      hScroll: scroll.scrollWidth <= scroll.clientWidth + 1,
+      phoneChrome: getComputedStyle(document.querySelector(".bar")).display === "none" && getComputedStyle(document.querySelector(".handle")).display === "none" && cs.position !== "fixed",
+      radius: parseFloat(cs.borderRadius),
+      mono: getComputedStyle(document.body).backgroundColor === "rgb(13, 13, 13)",
+    };
+  });
+  ok(!desk.pageOverflow, `${tag} page fits the viewport`);
+  ok(desk.sideBySide && desk.stageWider, `${tag} house is the large side of a split`);
+  ok(desk.sheetIn && desk.stageIn, `${tag} sheet and stage stay on screen`);
+  ok(desk.bookIn && desk.priceIn && desk.h1In && desk.kindIn, `${tag} heading, price, book, and home type stay on screen`);
+  ok(desk.canvasBig, `${tag} house canvas is large (${Math.round(desk.canvas.w)}x${Math.round(desk.canvas.h)})`);
+  ok(desk.panelOk, `${tag} sheet panel is a steady width (${desk.sheetW})`);
+  ok(desk.segH >= 48 && desk.radius >= 20, `${tag} controls stay rounded and comfortable`);
+  ok(desk.scrolls && desk.hScroll && desk.phoneChrome && desk.mono, `${tag} the sheet scrolls inside a dark panel`);
+  if (path !== "/" && path !== "/c/saafi") ok(!/Saafi|Darwin|Noor/i.test(await p.evaluate(() => document.title + "\n" + document.body.innerText)), `${tag} no brand`);
+  await p.screenshot({ path: `${shots}/desktop-${w}x${h}-${name}.png` });
+  ok(errs.length === 0, `${tag} no page errors ${errs.join("|")}`);
+  await ctx.close();
 }
 
 await b.close();

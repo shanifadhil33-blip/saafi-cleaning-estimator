@@ -10,8 +10,11 @@ function assertMarket(m: Market) {
   if (m.contact.email !== "hello@example.com") throw new Error(`${m.id} contact email must be hello@example.com`);
   if (m.id === "uk") {
     if (!m.contact.whatsapp.includes("555")) throw new Error("uk whatsapp must be a 555 placeholder");
-  } else if (m.contact.whatsapp) {
-    throw new Error(`${m.id} does not use WhatsApp`);
+    if (m.contact.book !== "whatsapp" || m.contact.also.join(",") !== "sms,email") {
+      throw new Error("uk books on WhatsApp, with text and email as alternatives");
+    }
+  } else if (m.contact.whatsapp || m.contact.book !== "sms" || m.contact.also.join(",") !== "email") {
+    throw new Error(`${m.id} books by text, with email as the alternative`);
   }
   if (m.discounts.weekly !== 0.2 || m.discounts.biweekly !== 0.15 || m.discounts.monthly !== 0.1) {
     throw new Error(`${m.id} recurring discounts must be 20, 15, and 10 percent`);
@@ -35,5 +38,5 @@ for (const m of Object.values(markets)) assertMarket(m);
 /** Home types shown on the sheet. The 3D model maps these in houseVisual. */
 export function shownHomes(id: Market["id"]): string[] {
   if (id === "uk") return ["flat", "terraced", "semi", "detached"];
-  return ["house", "condo", "townhouse", "apartment"];
+  return ["house", "apartment", "condo", "townhouse"];
 }

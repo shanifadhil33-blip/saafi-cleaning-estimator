@@ -13,6 +13,48 @@ for (const [w, h] of [[360, 780], [390, 844], [1440, 900]]) for (const L of ["en
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${tag} no sideways scroll`);
   const h1 = await p.locator("h1").innerText(); ok(L === "en" ? /Price your/.test(h1) : L === "hi" ? /[\u0900-\u097F]/.test(h1) && !/[A-Za-z]/.test(h1) : /[\u0600-\u06FF]/.test(h1) && !/[A-Za-z]/.test(h1), `${tag} heading ${h1}`);
   ok(!(await p.evaluate(() => /Saafi|Noor/.test(document.body.innerText + document.title))), `${tag} no brand name`);
+  if (w >= 800) {
+    const desk = await p.evaluate(() => {
+      const box = (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, btm: b.bottom }; };
+      const sheet = box(document.querySelector(".sheet"));
+      const stage = box(document.querySelector(".stagecol"));
+      const book = box(document.querySelector(".summary .book-btn"));
+      const price = box(document.querySelector(".summary .price"));
+      const h1 = box(document.querySelector("h1"));
+      const canvas = box(document.querySelector("canvas"));
+      const scroll = document.querySelector(".sheet-scroll");
+      const doc = document.documentElement;
+      const cs = getComputedStyle(document.querySelector(".sheet"));
+      const ih = window.innerHeight, iw = window.innerWidth;
+      return {
+        canvas,
+        sheetW: Math.round(sheet.w),
+        pageOverflow: doc.scrollHeight > ih + 2 || doc.scrollWidth > iw + 2,
+        sideBySide: sheet.r <= stage.x + 2 || stage.r <= sheet.x + 2,
+        stageWider: stage.w > sheet.w + 40,
+        sheetIn: sheet.y >= -1 && sheet.btm <= ih + 2 && sheet.x >= -1 && sheet.r <= iw + 2,
+        stageIn: stage.y >= -1 && stage.btm <= ih + 2 && stage.x >= -1 && stage.r <= iw + 2,
+        bookIn: book.w > 40 && book.h >= 48 && book.y >= 0 && book.btm <= ih + 1 && book.x >= 0 && book.r <= iw + 1,
+        priceIn: price.w > 20 && price.y >= 0 && price.btm <= ih + 1,
+        h1In: h1.y >= 0 && h1.btm <= ih && h1.h >= 28,
+        canvasBig: canvas.w >= 480 && canvas.h >= 480,
+        panelOk: sheet.w >= 420 && sheet.w <= 560,
+        segH: document.querySelector(".seg").getBoundingClientRect().height,
+        scrolls: scroll.scrollHeight > scroll.clientHeight + 20 && scroll.clientHeight > 400,
+        hScroll: scroll.scrollWidth <= scroll.clientWidth + 1,
+        phoneChrome: getComputedStyle(document.querySelector(".bar")).display === "none" && getComputedStyle(document.querySelector(".handle")).display === "none" && cs.position !== "fixed",
+        radius: parseFloat(cs.borderRadius),
+      };
+    });
+    ok(!desk.pageOverflow, `${tag} desktop page fits the viewport`);
+    ok(desk.sideBySide && desk.stageWider, `${tag} house is the large side of a split`);
+    ok(desk.sheetIn && desk.stageIn, `${tag} sheet and stage stay on screen`);
+    ok(desk.bookIn && desk.priceIn && desk.h1In, `${tag} heading, price, and book stay on screen`);
+    ok(desk.canvasBig, `${tag} house canvas is large (${Math.round(desk.canvas.w)}x${Math.round(desk.canvas.h)})`);
+    ok(desk.panelOk, `${tag} sheet panel is a steady width (${desk.sheetW})`);
+    ok(desk.segH >= 48 && desk.radius >= 20, `${tag} controls stay rounded and comfortable`);
+    ok(desk.scrolls && desk.hScroll && desk.phoneChrome, `${tag} the sheet scrolls inside the panel`);
+  }
   if (w < 800) {
     const r = await p.evaluate(() => ({ sheet: document.querySelector(".sheet").getBoundingClientRect().top / innerHeight, head: document.querySelector(".stage-head").getBoundingClientRect().bottom }));
     ok(r.sheet > 0.37 && r.sheet < 0.43, `${tag} sheet starts higher (${r.sheet.toFixed(2)})`);
