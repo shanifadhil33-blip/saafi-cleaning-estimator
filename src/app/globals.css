@@ -421,6 +421,7 @@ a, label, input, textarea, [role="radio"], [role="button"] { -webkit-tap-highlig
 @media (max-width: 820px) {
   .lang button { min-height: 36px; }
   .hint, .note, .type-rate, .sum-short, .extra .amt, .stage-head p, .err, .extra .name small, .per, .num-box span, .row-toggle .meta { font-size: 14px !important; }
+  .app[data-market] .stage-head p { font-size: 12.5px !important; line-height: 1.25; }
   html[lang="ur"] .hint, html[lang="ur"] .note, html[lang="ur"] .stage-head p, html[lang="ur"] .extra .name small { font-size: 14px !important; }
   .bar .bar-crew { font-size: 12px !important; line-height: 1.25 !important; }
 }

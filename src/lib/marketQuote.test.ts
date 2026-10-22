@@ -108,10 +108,12 @@ describe("market quote", () => {
     expect(formatMoney(220000, "CAD", "fr")).toBe("CAD 2 200");
     expect(getCopy("en", "us").bedsCaption(2)).toBe("2BR");
     expect(getCopy("en", "us").bathsCaption(2)).toBe("2 bath");
-    expect(getCopy("es", "us").bedsCaption(2)).toBe("2 dormitorios");
+    expect(getCopy("es", "us").bedsCaption(2)).toBe("2 dorm");
     expect(getCopy("es", "us").bathsCaption(2)).toBe("2 baños");
-    expect(getCopy("fr", "ca").bedsCaption(2)).toBe("2 chambres");
-    expect(getCopy("fr", "ca").bathsCaption(2)).toBe("2 salles de bain");
+    expect(getCopy("es", "us").bedsCaption(1)).toBe("1 dormitorio");
+    expect(getCopy("fr", "ca").bedsCaption(2)).toBe("2 ch");
+    expect(getCopy("fr", "ca").bathsCaption(2)).toBe("2 sdb");
+    expect(getCopy("fr", "ca").bedsCaption(1)).toBe("1 chambre");
   });
 
   it("keeps public copy free of dashes and brand names", () => {

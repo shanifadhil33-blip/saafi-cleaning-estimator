@@ -44,8 +44,17 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   const sub = await p.locator("#homeSub").evaluate((el) => el.textContent.replace(/\s+/g, " "));
   if (path === "/uk") ok(/sq ft|pi²/.test(sub), `${tag} size caption`);
   if (L === "en") ok(/\dBR/.test(sub) && /bath/.test(sub), `${tag} bedroom and bathroom labels`);
-  if (L === "es") ok(/dormitorio/.test(sub) && /baño/.test(sub), `${tag} bedroom and bathroom labels`);
-  if (L === "fr") ok(/chambre/.test(sub) && /salles? de bain/.test(sub) && /2 200/.test(sub), `${tag} bedroom and bathroom labels`);
+  if (L === "es") ok(/dorm/.test(sub) && /baño/.test(sub), `${tag} bedroom and bathroom labels`);
+  if (L === "fr") ok(/\d ch\b/.test(sub) && /sdb/.test(sub) && /2 200/.test(sub), `${tag} bedroom and bathroom labels`);
+  const captionClear = await p.evaluate(() => {
+    const sub = document.querySelector("#homeSub");
+    const sheet = document.querySelector("#sheet");
+    if (!sub || !sheet) return false;
+    const line = parseFloat(getComputedStyle(sub).lineHeight) || 16;
+    const box = sub.getBoundingClientRect();
+    return box.height / line <= 2.2 && box.bottom <= sheet.getBoundingClientRect().top - 8;
+  });
+  ok(captionClear, `${tag} caption fits above the sheet`);
   ok(await p.locator(".extra.maid").count() === 0, `${tag} no maid room`);
   const inset = await p.locator("#freqSeg button").evaluateAll((els) => els.length === 4 && els.every((el) => {
     const r = el.getBoundingClientRect();

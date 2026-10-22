@@ -217,7 +217,10 @@ export default function MarketExperience({ market }: { market: Market }) {
   const snaps = useCallback(() => {
     const vh = window.innerHeight, bar = barRef.current?.offsetHeight || 76, top = (topRef.current?.offsetHeight || 0) + 8;
     const full = Math.max(top, Math.round(vh * 0.09));
-    const half = Math.round(vh * 0.5) - 80, peek = Math.max(half + 60, Math.round(vh - bar - 150));
+    let half = Math.round(vh * 0.5) - 80;
+    const headBottom = headRef.current?.getBoundingClientRect().bottom ?? 0;
+    if (headBottom > 0) half = Math.max(half, Math.ceil(headBottom + 16));
+    const peek = Math.max(half + 60, Math.round(vh - bar - 150));
     return { full, half, peek };
   }, []);
   const apply = useCallback((y: number, smooth: boolean) => {
@@ -271,6 +274,10 @@ export default function MarketExperience({ market }: { market: Market }) {
   const bathBit = copy.bathsCaption(s.baths);
   const svcName = copy.services[s.service]?.name ?? s.service;
   const sub = [sizeStr(s.sqft), bedBit, bathBit, lang === "en" ? svcName.toLowerCase() : svcName].join(", ");
+  useIso(() => {
+    if (!phone || sheet.current.snap !== "half") return;
+    go("half", false);
+  }, [sub, phone, go]);
   const handle = lang === "fr" ? "Redimensionner" : lang === "es" ? "Cambiar el panel" : "Resize panel";
   const drag = lang === "fr" ? "Glissez pour regarder" : lang === "es" ? "Arrastra para mirar" : "Drag to look around";
   const recurring = !!svc?.discount && s.freq !== "once";
