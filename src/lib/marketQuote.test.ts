@@ -127,6 +127,14 @@ describe("market quote", () => {
     expect(getCopy("en", "uk").lead).toMatch(/WhatsApp/);
     expect(getCopy("en", "uk").freqs.biweekly).toBe("Fortnightly");
     expect(getCopy("fr", "ca").homes.house).toBe("Maison");
+    expect(getCopy("en", "us").mobilePh).toBe("(555) 010 0100");
+    expect(getCopy("es", "us").mobilePh).toBe("(555) 010 0100");
+    expect(getCopy("es", "us").shareLoc).toBe("Compartir mi ubicación");
+    expect(getCopy("es", "us").shareAdded).toBe("Ubicación añadida");
+    expect(getCopy("fr", "ca").shareLoc).toBe("Partager ma position");
+    expect(getCopy("fr", "ca").shareDenied).toMatch(/réserver quand même/);
+    expect(getCopy("en", "ca").mobilePh).toBe("(555) 010 0100");
+    expect(getCopy("en", "uk").mobilePh).toBe("07700 900000");
     expect(getCopy("en", "uk").hoursCount(3)).toBe("3 hours");
     expect(getCopy("en", "uk").hoursCount(1)).toBe("1 hour");
     expect(getCopy("es", "us").hoursCount(3)).toBe("3 horas");

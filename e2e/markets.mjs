@@ -1,4 +1,5 @@
 /* Phone coverage for the US, Canada, and UK sheets at 360 and 390. */
+import fs from "fs";
 import { chromium } from "playwright-core";
 const [BASE] = [process.argv[2] || "http://127.0.0.1:3311"];
 const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--no-sandbox", "--enable-unsafe-swiftshader", "--use-angle=swiftshader"] });
@@ -6,13 +7,18 @@ let fail = 0;
 const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fail++; };
 const titles = { en: "Price your home cleaning", es: "Calcula el precio de la limpieza", fr: "Estimez le prix du ménage" };
 const homes = { "/us": ["house", "apartment", "condo", "townhouse"], "/ca": ["house", "apartment", "condo", "townhouse"], "/uk": ["flat", "terraced", "semi", "detached"] };
-const areas = { "/us": "10001", "/ca": "M5V 2T6", "/uk": "SW1A 1AA" };
+const mobiles = { "/us": "(555) 010 0199", "/ca": "(555) 010 0199", "/uk": "07700 900123" };
+const placeholders = { "/us": "(555) 010 0100", "/ca": "(555) 010 0100", "/uk": "07700 900000" };
 const cases = [["/us", "en"], ["/us", "es"], ["/ca", "en"], ["/ca", "fr"], ["/uk", "en"]];
+const widths = [[360, 780], [390, 844], [1280, 900], [1440, 900]];
+const bodyOf = (href, key) => decodeURIComponent((href.split(`${key}=`)[1] || "").replace(/\+/g, " "));
+const OPTIONAL = /optional|opcional|facultatif|اختياري|اختیاری|ज़रूरी नहीं/i;
 
 async function total(p) { return Number(await p.locator(".app").getAttribute("data-total")); }
 
-for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
-  const ctx = await b.newContext({ viewport: { width: w, height: h }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+for (const [w, h] of widths) for (const [path, L] of cases) {
+  const phone = w <= 820;
+  const ctx = await b.newContext({ viewport: { width: w, height: h }, hasTouch: phone, isMobile: phone, deviceScaleFactor: phone ? 2 : 1 });
   const p = await ctx.newPage();
   const errs = [];
   p.on("pageerror", (e) => errs.push(e.message));
@@ -20,7 +26,8 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   await p.goto(`${BASE}${path}?lang=${L}`);
   await p.waitForSelector("canvas");
   await p.waitForSelector(`.app[data-lang="${L}"]`, { state: "attached" });
-  await p.waitForFunction(() => { const s = document.querySelector(".sheet"); return s && s.getBoundingClientRect().top < innerHeight * 0.55; });
+  if (phone) await p.waitForFunction(() => { const s = document.querySelector(".sheet"); return s && s.getBoundingClientRect().top < innerHeight * 0.55; });
+  else await p.waitForSelector(".summary .book-btn");
   const text = await p.evaluate(() => document.body.innerText);
   ok((await p.locator("h1").innerText()) === titles[L], `${tag} heading`);
   ok(await p.locator(".handle").count() === 1 && await p.locator(".bar").count() === 1, `${tag} sheet and booking bar`);
@@ -54,7 +61,7 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
     const box = sub.getBoundingClientRect();
     return box.height / line <= 2.2 && box.bottom <= sheet.getBoundingClientRect().top - 8;
   });
-  ok(captionClear, `${tag} caption fits above the sheet`);
+  if (phone) ok(captionClear, `${tag} caption fits above the sheet`);
   ok(await p.locator(".extra.maid").count() === 0, `${tag} no maid room`);
   const inset = await p.locator("#freqSeg button").evaluateAll((els) => els.length === 4 && els.every((el) => {
     const r = el.getBoundingClientRect();
@@ -69,12 +76,15 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   });
   ok((await total(p)) !== beforeSlide, `${tag} slider changes the price`);
   ok(!(/[—–-]/.test(text)), `${tag} no dashes in copy`);
+  ok(!OPTIONAL.test(text), `${tag} no optional label`);
   ok(!/Saafi|Darwin|Noor/i.test(text + await p.title()), `${tag} no brand`);
   if (path !== "/uk") ok(!/WhatsApp/i.test(text), `${tag} no WhatsApp`);
   else ok(/WhatsApp/.test(text), `${tag} WhatsApp offered`);
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${tag} no sideways scroll`);
-  const ratio = await p.evaluate(() => document.querySelector(".sheet").getBoundingClientRect().top / innerHeight);
-  ok(ratio > 0.35 && ratio < 0.5, `${tag} sheet sits over the house (${ratio.toFixed(2)})`);
+  if (phone) {
+    const ratio = await p.evaluate(() => document.querySelector(".sheet").getBoundingClientRect().top / innerHeight);
+    ok(ratio > 0.35 && ratio < 0.5, `${tag} sheet sits over the house (${ratio.toFixed(2)})`);
+  }
   const once = await total(p);
   await p.locator("[data-freq=weekly]").click();
   const weekly = await total(p);
@@ -92,12 +102,29 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   ok((await total(p)) > before, `${tag} add on raises the price`);
   await p.locator("[data-v=move], [data-v=oneoff]").first().click();
   ok(await p.locator("[data-freq=weekly]").isDisabled(), `${tag} one off clean has no recurring discount`);
-  await p.locator(".bar .btn").click();
+  await p.locator(phone ? ".bar .btn" : ".summary .book-btn").click();
   await p.waitForSelector("[role=dialog]");
   await p.locator("#sendBtn").click();
   ok(await p.locator("#fName[aria-invalid=true]").count() === 1, `${tag} name is required`);
+  ok(await p.locator("#fMobile[aria-invalid=true]").count() === 1, `${tag} mobile is required`);
+  ok(await p.locator("#fArea, .addr-toggle").count() === 0, `${tag} no postal code or street address`);
+  ok(await p.locator("#shareLoc").count() === 1, `${tag} share location button`);
+  const formText = await p.locator("#viewForm").innerText();
+  ok(!OPTIONAL.test(formText) && !OPTIONAL.test(await p.locator("body").innerText()), `${tag} no optional label on the form or page`);
+  ok(await p.locator("#fMobile").getAttribute("type") === "tel" && await p.locator("#fMobile").getAttribute("inputmode") === "numeric", `${tag} tel with numeric keypad`);
+  ok(await p.locator("#fMobile").getAttribute("placeholder") === placeholders[path], `${tag} mobile placeholder`);
+  const follows = await p.evaluate(() => {
+    const name = document.getElementById("fName");
+    const mobile = document.getElementById("fMobile");
+    return !!(name && mobile && (name.compareDocumentPosition(mobile) & Node.DOCUMENT_POSITION_FOLLOWING));
+  });
+  ok(follows, `${tag} mobile follows name`);
+  ok(!/[—–-]/.test(await p.locator("#viewForm").innerText()), `${tag} form copy has no dashes`);
   await p.locator("#fName").fill("Ana Lopez");
-  await p.locator("#fArea").fill(areas[path]);
+  await p.locator("#fMobile").fill("12");
+  await p.locator("#sendBtn").click();
+  ok(await p.locator("#fMobile[aria-invalid=true]").count() === 1 && (await p.locator("#mobileErr").innerText()).length > 3, `${tag} short mobile is flagged`);
+  await p.locator("#fMobile").fill(mobiles[path]);
   await p.locator("[data-day=tomorrow]").click();
   await p.locator(".chips.times .chip:not([disabled])").first().click();
   await p.locator("#sendBtn").evaluate((el) => el.addEventListener("click", (e) => e.preventDefault(), true));
@@ -113,6 +140,10 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   const send = sendHref;
   const mail = await p.locator("[data-contact=email]").getAttribute("href");
   ok(mail.includes("hello@example.com"), `${tag} email alternative`);
+  const sendBody = bodyOf(send, path === "/uk" ? "text" : "body");
+  const mailBody = bodyOf(mail, "body");
+  ok(sendBody.includes(mobiles[path]) && !sendBody.includes("maps.google.com"), `${tag} primary includes mobile and works without location`);
+  ok(mailBody.includes(mobiles[path]) && !mailBody.includes("maps.google.com"), `${tag} email includes mobile and works without location`);
   if (path === "/uk") {
     ok(send.startsWith("https://wa.me/445550100?text="), `${tag} Book sends WhatsApp`);
     const sms = await p.locator("[data-contact=sms]").getAttribute("href");
@@ -129,24 +160,31 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
 
 {
   const p = await (await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })).newPage();
-  await p.goto(`${BASE}/ca`);
+  await p.goto(`${BASE}/ca?lang=fr`);
   await p.waitForSelector("canvas");
   await p.locator(".bar .btn").click();
-  await p.waitForSelector("#fArea");
-  await p.locator("#fArea").fill("H2Y 1C6");
-  await p.waitForFunction(() => document.documentElement.lang === "fr");
-  ok((await p.locator("h1").innerText()).includes("Estimez"), "Quebec postal switches to French");
+  await p.waitForSelector("#shareLoc");
+  ok((await p.locator("#shareLoc").innerText()).includes("Partager ma position"), "French share location copy");
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), "French page has no optional label");
+  ok(await p.locator("#fArea").count() === 0, "Canada booking has no postal field");
   await p.goto(`${BASE}/`);
   await p.waitForSelector("canvas");
   ok(await p.locator(".kind[data-kind=villa]").count() === 1, "GCC home still has villa");
   ok(/WhatsApp/i.test(await p.locator(".lead").innerText()), "GCC home still books on WhatsApp");
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), "GCC home has no optional label");
   await p.goto(`${BASE}/c/saafi`);
   await p.waitForSelector("canvas");
   ok((await p.locator("h1").innerText()).includes("Price your"), "company page still the GCC estimator");
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), "company page has no optional label");
+  await p.locator(".bar .btn").click();
+  await p.waitForSelector("#fMobile");
+  ok(await p.locator("#fArea, .addr-toggle").count() === 0 && await p.locator("#shareLoc").count() === 1, "company booking uses location instead of area");
+  ok(await p.locator("#fMobile").getAttribute("placeholder") === "050 000 0000", "company mobile placeholder");
   await p.close();
 }
 
 const shots = "/opt/cursor/artifacts";
+fs.mkdirSync(shots, { recursive: true });
 const pages = [["/", "home"], ["/us", "us"], ["/ca", "ca"], ["/uk", "uk"], ["/c/saafi", "saafi"]];
 for (const [w, h] of [[1280, 800], [1440, 900], [1920, 1080]]) for (const [path, name] of pages) {
   const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
@@ -209,8 +247,80 @@ for (const [w, h] of [[1280, 800], [1440, 900], [1920, 1080]]) for (const [path,
   ok(desk.segH >= 48 && desk.radius >= 20, `${tag} controls stay rounded and comfortable`);
   ok(desk.scrolls && desk.hScroll && desk.phoneChrome && desk.mono, `${tag} the sheet scrolls inside a dark panel`);
   if (path !== "/" && path !== "/c/saafi") ok(!/Saafi|Darwin|Noor/i.test(await p.evaluate(() => document.title + "\n" + document.body.innerText)), `${tag} no brand`);
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), `${tag} no optional label`);
   await p.screenshot({ path: `${shots}/desktop-${w}x${h}-${name}.png` });
   ok(errs.length === 0, `${tag} no page errors ${errs.join("|")}`);
+  await ctx.close();
+}
+
+const MAP = "https://maps.google.com/?q=40.7128,-74.006";
+const geoCases = [
+  { w: 360, h: 780, path: "/us", lang: "en", mode: "ok", share: "Share my location", added: "Location added", note: "" },
+  { w: 390, h: 844, path: "/us", lang: "es", mode: "ok", share: "Compartir mi ubicación", added: "Ubicación añadida", note: "" },
+  { w: 1280, h: 900, path: "/ca", lang: "fr", mode: "ok", share: "Partager ma position", added: "Position ajoutée", note: "" },
+  { w: 1440, h: 900, path: "/uk", lang: "en", mode: "ok", share: "Share my location", added: "Location added", note: "" },
+  { w: 360, h: 780, path: "/ca", lang: "en", mode: "deny", share: "Share my location", added: "", note: "You can still book" },
+  { w: 390, h: 844, path: "/us", lang: "es", mode: "deny", share: "Compartir mi ubicación", added: "", note: "Puedes reservar igual" },
+  { w: 1280, h: 900, path: "/uk", lang: "en", mode: "deny", share: "Share my location", added: "", note: "You can still book" },
+  { w: 1440, h: 900, path: "/ca", lang: "fr", mode: "deny", share: "Partager ma position", added: "", note: "réserver quand même" },
+];
+for (const geo of geoCases) {
+  const phone = geo.w <= 820;
+  const ctx = await b.newContext({ viewport: { width: geo.w, height: geo.h }, hasTouch: phone, isMobile: phone });
+  const p = await ctx.newPage();
+  await p.addInitScript((mode) => {
+    const fake = {
+      getCurrentPosition(success, error) {
+        if (mode === "deny") { error({ code: 1, message: "denied" }); return; }
+        success({ coords: { latitude: 40.7128, longitude: -74.006, accuracy: 12 } });
+      },
+    };
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: fake });
+  }, geo.mode);
+  const tag = `geo ${geo.w} ${geo.path} ${geo.lang} ${geo.mode}`;
+  await p.goto(`${BASE}${geo.path}?lang=${geo.lang}`);
+  await p.waitForSelector("canvas");
+  await p.locator(phone ? ".bar .btn" : ".summary .book-btn").click();
+  await p.waitForSelector("#shareLoc");
+  ok((await p.locator("#shareLoc").innerText()).includes(geo.share), `${tag} button copy`);
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), `${tag} no optional label`);
+  const mobile = mobiles[geo.path];
+  await p.locator("#fName").fill("Ana Lopez");
+  await p.locator("#fMobile").fill(mobile);
+  await p.locator("#shareLoc").click();
+  if (geo.mode === "ok") {
+    await p.waitForSelector("[data-loc=added]");
+    ok((await p.locator(".loc-added").innerText()).includes(geo.added), `${tag} location added`);
+    ok(await p.locator("#locRemove").count() === 1, `${tag} remove control`);
+    if (geo.w === 360) {
+      await p.locator("#locRemove").click();
+      await p.waitForSelector("#shareLoc");
+      ok(await p.locator("[data-loc=added]").count() === 0, `${tag} remove clears location`);
+      await p.locator("#shareLoc").click();
+      await p.waitForSelector("[data-loc=added]");
+    }
+  } else {
+    await p.waitForSelector("#locNote");
+    const note = await p.locator("#locNote").innerText();
+    ok(note.includes(geo.note) && await p.locator("#shareLoc").count() === 1, `${tag} denied note stays on the form (${note})`);
+    ok(!/[—–-]/.test(note), `${tag} denied note has no dashes`);
+  }
+  ok(!OPTIONAL.test(await p.locator("#viewForm").innerText()) && !OPTIONAL.test(await p.locator("body").innerText()), `${tag} form never says optional`);
+  await p.locator("[data-day=tomorrow]").click();
+  await p.locator(".chips.times .chip:not([disabled])").first().click();
+  await p.locator("#sendBtn").evaluate((el) => el.addEventListener("click", (e) => e.preventDefault(), true));
+  const primaryHref = await p.locator("#sendBtn").getAttribute("href");
+  await p.locator("#sendBtn").click();
+  await p.waitForSelector("#viewDone");
+  const primaryBody = bodyOf(primaryHref, geo.path === "/uk" ? "text" : "body");
+  const mailBody = bodyOf(await p.locator("[data-contact=email]").getAttribute("href"), "body");
+  ok(primaryBody.includes(mobile) && mailBody.includes(mobile), `${tag} messages include mobile`);
+  const expectLink = geo.mode === "ok";
+  ok(primaryBody.includes(MAP) === expectLink && mailBody.includes(MAP) === expectLink, `${tag} maps link ${expectLink ? "appended" : "omitted"}`);
+  if (geo.path === "/uk") {
+    const smsBody = bodyOf(await p.locator("[data-contact=sms]").getAttribute("href"), "body");
+    ok(smsBody.includes(MAP) === expectLink && smsBody.includes(mobile), `${tag} text maps link`);
+  }
   await ctx.close();
 }
 
