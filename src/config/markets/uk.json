@@ -57,7 +57,9 @@
     "phoneDisplay": "+44 555 0100",
     "phoneTel": "+445550100",
     "email": "hello@example.com",
-    "whatsapp": "445550100"
+    "whatsapp": "445550100",
+    "book": "whatsapp",
+    "also": ["sms", "email"]
   },
   "payment": "after",
   "showTax": false,

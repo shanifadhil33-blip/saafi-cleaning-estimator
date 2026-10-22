@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCopy } from "./marketCopy";
-import { markets } from "./markets";
-import { checkArea, formatMoney, houseVisual, initialState, isQuebecPostal, quote, type Lang, type Region } from "./marketQuote";
+import { markets, shownHomes } from "./markets";
+import { channelHref, checkArea, formatMoney, homeSpec, houseVisual, initialState, isQuebecPostal, quote, type Lang, type Region } from "./marketQuote";
 
 function walk(v: unknown, out: string[]) {
   if (typeof v === "string") out.push(v);
@@ -124,5 +124,14 @@ describe("market quote", () => {
     expect(markets.us.defaultHome).toBe("house");
     expect(markets.ca.defaultHome).toBe("house");
     expect(initialState(markets.us).home).toBe("house");
+    expect(shownHomes("us").join(",")).toBe("house,apartment,condo,townhouse");
+    expect(homeSpec("us", "house").max).toBeGreaterThan(homeSpec("us", "apartment").max);
+    expect(homeSpec("uk", "flat").max).toBeLessThan(homeSpec("uk", "detached").max);
+    const start = initialState(markets.us);
+    expect(quote(markets.us, { ...start, sqft: start.sqft + 200 }).totalCents).toBeGreaterThan(quote(markets.us, start).totalCents);
+    expect(channelHref(markets.us, "sms", "Hello", "A 2 bed house")).toMatch(/^sms:\+15550100\?body=/);
+    expect(channelHref(markets.uk, "whatsapp", "Hello", "Flat")).toMatch(/^https:\/\/wa\.me\/445550100\?text=/);
+    expect(markets.ca.contact.book).toBe("sms");
+    expect(markets.uk.contact.also).toEqual(["sms", "email"]);
   });
 });

@@ -5,7 +5,7 @@ const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args
 let fail = 0;
 const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fail++; };
 const titles = { en: "Price your home cleaning", es: "Calcula el precio de la limpieza", fr: "Estimez le prix du ménage" };
-const homes = { "/us": ["house", "condo", "townhouse", "apartment"], "/ca": ["house", "condo", "townhouse", "apartment"], "/uk": ["flat", "terraced", "semi", "detached"] };
+const homes = { "/us": ["house", "apartment", "condo", "townhouse"], "/ca": ["house", "apartment", "condo", "townhouse"], "/uk": ["flat", "terraced", "semi", "detached"] };
 const areas = { "/us": "10001", "/ca": "M5V 2T6", "/uk": "SW1A 1AA" };
 const cases = [["/us", "en"], ["/us", "es"], ["/ca", "en"], ["/ca", "fr"], ["/uk", "en"]];
 
@@ -40,7 +40,15 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
     const labels = await p.locator(".lang button").evaluateAll((els) => [...new Set(els.map((el) => el.textContent.trim()))]);
     ok(labels.join(",") === "EN,FR", `${tag} English and French only (${labels.join(",")})`);
   }
-  if (path === "/uk") ok((await p.locator("#homeSub").innerText()).startsWith("3 hours"), `${tag} hours caption`);
+  ok(await p.locator("#sqftRange").count() === 1 && await p.locator("#floorsSeg").count() === 1 && await p.locator("#bedsLbl").count() === 1, `${tag} size slider, floors, bedrooms`);
+  if (path === "/uk") ok(/sq ft|pi²/.test(await p.locator("#homeSub").innerText()), `${tag} size caption`);
+  const beforeSlide = await total(p);
+  await p.locator("#sqftRange").evaluate((el) => {
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+    set.call(el, el.max);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  ok((await total(p)) !== beforeSlide, `${tag} slider changes the price`);
   ok(!(/[—–-]/.test(text)), `${tag} no dashes in copy`);
   ok(!/Saafi|Darwin|Noor/i.test(text + await p.title()), `${tag} no brand`);
   if (path !== "/uk") ok(!/WhatsApp/i.test(text), `${tag} no WhatsApp`);
@@ -57,15 +65,14 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   await p.locator("[data-freq=monthly]").click();
   const mo = await total(p);
   ok(Math.abs(mo - (once - Math.round(once * 0.1))) <= 1, `${tag} monthly 10%`);
-  const sizeBtn = path === "/uk" ? "[aria-labelledby='hoursLbl'] button" : "[aria-labelledby='bedsLbl'] button";
-  await p.locator(sizeBtn).last().click();
+  await p.locator("[aria-labelledby='bedsLbl'] button").last().click();
   ok((await total(p)) !== mo, `${tag} size changes the price`);
   const before = await total(p);
   await p.locator(".row-toggle").click();
   await p.locator("[data-k=oven]").click();
   ok((await total(p)) > before, `${tag} add on raises the price`);
   await p.locator("[data-v=move], [data-v=oneoff]").first().click();
-  ok(await p.locator("[data-freq=weekly]").count() === 0, `${tag} one off clean has no recurring discount`);
+  ok(await p.locator("[data-freq=weekly]").isDisabled(), `${tag} one off clean has no recurring discount`);
   await p.locator(".bar .btn").click();
   await p.waitForSelector("[role=dialog]");
   await p.locator("#sendBtn").click();
@@ -74,6 +81,8 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   await p.locator("#fArea").fill(areas[path]);
   await p.locator("[data-day=tomorrow]").click();
   await p.locator(".chips.times .chip:not([disabled])").first().click();
+  await p.locator("#sendBtn").evaluate((el) => el.addEventListener("click", (e) => e.preventDefault(), true));
+  var sendHref = await p.locator("#sendBtn").getAttribute("href");
   await p.locator("#sendBtn").click();
   await p.waitForSelector("#viewDone");
   const drawn = await p.waitForFunction(() => {
@@ -82,12 +91,18 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   }, null, { timeout: 3000 }).then(() => true).catch(() => false);
   const dash = await p.locator(".done-mark path").evaluate((el) => parseFloat(getComputedStyle(el).strokeDashoffset));
   ok(drawn && dash < 1, `${tag} confirmation tick is drawn (${dash})`);
-  const tel = await p.locator("[data-contact=tel]").getAttribute("href");
-  const sms = await p.locator("[data-contact=sms]").getAttribute("href");
-  const mail = await p.locator("[data-contact=mailto]").getAttribute("href");
-  ok(tel.includes("555") && sms.includes("555") && mail.includes("hello@example.com"), `${tag} placeholder call text email`);
-  const wa = await p.locator("[data-contact=whatsapp]").count();
-  ok(path === "/uk" ? wa === 1 && (await p.locator("[data-contact=whatsapp]").getAttribute("href")).includes("wa.me/445550100") : wa === 0, `${tag} WhatsApp only in the UK`);
+  const send = sendHref;
+  const mail = await p.locator("[data-contact=email]").getAttribute("href");
+  ok(mail.includes("hello@example.com"), `${tag} email alternative`);
+  if (path === "/uk") {
+    ok(send.startsWith("https://wa.me/445550100?text="), `${tag} Book sends WhatsApp`);
+    const sms = await p.locator("[data-contact=sms]").getAttribute("href");
+    ok(sms.startsWith("sms:+445550100?body=") && (await p.locator("[data-contact=whatsapp]").count()) === 0, `${tag} text alternative, no second WhatsApp`);
+  } else {
+    ok(send.startsWith("sms:+15550100?body="), `${tag} Book sends a text`);
+    ok((await p.locator("[data-contact=sms]").count()) === 0 && !/WhatsApp/i.test(await p.locator("#viewDone").innerText()), `${tag} no WhatsApp alternative`);
+  }
+  ok(!/saafi/i.test(await p.evaluate(() => document.title + "\n" + document.body.innerText + "\n" + [...document.querySelectorAll("meta")].map((m) => m.content || "").join("\n"))), `${tag} no brand in the page`);
   ok(!/[—–-]/.test(await p.locator("#viewDone").innerText()), `${tag} confirmation has no dashes`);
   ok(errs.length === 0, `${tag} no page errors ${errs.join("|")}`);
   await ctx.close();

@@ -26,6 +26,23 @@ export interface Copy {
   hours: string;
   hoursHint: (beds: number) => string;
   hoursCount: (n: number) => string;
+  homeSize: string;
+  sqftUnit: string;
+  sqmUnit: string;
+  floors: string;
+  materials: string;
+  matBring: string;
+  matOwn: string;
+  book: string;
+  freqShort: Record<Freq, string>;
+  sendSms: string;
+  sendWa: string;
+  sendMail: string;
+  openingSms: string;
+  openingWa: string;
+  openingMail: string;
+  maid: string;
+  maidHint: string;
   rooms: string;
   roomNames: Record<string, string>;
   often: string;
@@ -148,7 +165,7 @@ const usParks: Record<string, string> = { free: "Free driveway or street", paid:
 
 const en: Copy = {
   title: "Price your home cleaning",
-  lead: "Choose the home and the clean. The price updates as you go. Call, text, or email when it looks right.",
+  lead: "Set your home details and the price updates as you go. Text or email when it looks right.",
   area: "ZIP code",
   areaPh: "10001",
   areaBad: "Enter a 5 digit ZIP code.",
@@ -171,6 +188,23 @@ const en: Copy = {
   hours: "Hours",
   hoursHint: hoursEn,
   hoursCount: countEn,
+  homeSize: "Home size",
+  sqftUnit: "sq ft",
+  sqmUnit: "sq m",
+  floors: "Floors",
+  materials: "Cleaning materials",
+  matBring: "Bring them",
+  matOwn: "I have them",
+  book: "Book",
+  freqShort: { once: "One time", weekly: "Weekly", biweekly: "2 weeks", monthly: "Monthly" },
+  sendSms: "Text this request",
+  sendWa: "Send on WhatsApp",
+  sendMail: "Email this request",
+  openingSms: "Opening your messages",
+  openingWa: "Opening WhatsApp",
+  openingMail: "Opening your email",
+  maid: "Maid's room",
+  maidHint: "An extra room",
   rooms: "Extra rooms",
   roomNames: { conservatory: "Conservatory", utility: "Utility room" },
   often: "How often",
@@ -236,7 +270,7 @@ const en: Copy = {
   terms: "I agree to the booking terms. You can reschedule or cancel free of charge up to 24 hours before. If something we cleaned is not right, tell us and we will come back.",
   request: "Request clean",
   doneTitle: "Booking request received",
-  doneBody: "Call, text, or email and we will confirm the time.",
+  doneBody: "Text or email and we will confirm the time.",
   edit: "Edit request",
   call: "Call",
   text: "Text",
@@ -264,7 +298,7 @@ const en: Copy = {
 const es: Copy = {
   ...en,
   title: "Calcula el precio de la limpieza",
-  lead: "Elige la vivienda y la limpieza. El precio se actualiza al momento. Llama, escribe o envía un correo cuando el precio te encaje.",
+  lead: "Elige la vivienda y la limpieza. El precio se actualiza al momento. Escribe o envía un correo.",
   area: "Código postal",
   areaBad: "Escribe un código postal de 5 dígitos.",
   areaOut: "Todavía no cubrimos tu zona. Deja tu correo.",
@@ -292,6 +326,23 @@ const es: Copy = {
   hours: "Horas",
   hoursHint: hoursEs,
   hoursCount: countEs,
+  homeSize: "Tamaño",
+  sqftUnit: "sq ft",
+  sqmUnit: "sq m",
+  floors: "Pisos",
+  materials: "Productos",
+  matBring: "Los traemos",
+  matOwn: "Ya los tengo",
+  book: "Reservar",
+  freqShort: { once: "Una vez", weekly: "Semanal", biweekly: "2 semanas", monthly: "Mensual" },
+  sendSms: "Enviar por texto",
+  sendWa: "Enviar por WhatsApp",
+  sendMail: "Enviar por correo",
+  openingSms: "Abriendo tus mensajes",
+  openingWa: "Abriendo WhatsApp",
+  openingMail: "Abriendo tu correo",
+  maid: "Cuarto de servicio",
+  maidHint: "Una habitación más",
   rooms: "Habitaciones extra",
   roomNames: { conservatory: "Invernadero", utility: "Cuarto de servicio" },
   often: "Frecuencia",
@@ -363,7 +414,7 @@ const es: Copy = {
   terms: "Acepto las condiciones. Puedes cambiar la fecha o cancelar sin cargo hasta 24 horas antes. Si algo que limpiamos no quedó bien, avísanos y volvemos.",
   request: "Pedir limpieza",
   doneTitle: "Solicitud de reserva recibida",
-  doneBody: "Llama, escribe o envía un correo y confirmaremos la hora.",
+  doneBody: "Escribe o envía un correo y confirmaremos la hora.",
   edit: "Editar solicitud",
   call: "Llamar",
   text: "Mensaje",
@@ -391,7 +442,7 @@ const es: Copy = {
 const fr: Copy = {
   ...en,
   title: "Estimez le prix du ménage",
-  lead: "Choisissez le logement et le ménage. Le prix se met à jour tout de suite. Appelez, textez ou envoyez un courriel quand le prix vous convient.",
+  lead: "Choisissez le logement et le ménage. Le prix se met à jour. Textez ou envoyez un courriel.",
   area: "Code postal",
   areaPh: "H2Y 1C6",
   areaBad: "Écrivez un code postal comme H2Y 1C6.",
@@ -420,6 +471,23 @@ const fr: Copy = {
   hours: "Heures",
   hoursHint: hoursFr,
   hoursCount: countFr,
+  homeSize: "Surface",
+  sqftUnit: "pi²",
+  sqmUnit: "m²",
+  floors: "Étages",
+  materials: "Produits",
+  matBring: "On les apporte",
+  matOwn: "Je les ai",
+  book: "Réserver",
+  freqShort: { once: "Une fois", weekly: "Semaine", biweekly: "2 semaines", monthly: "Mois" },
+  sendSms: "Envoyer par texto",
+  sendWa: "Envoyer par WhatsApp",
+  sendMail: "Envoyer par courriel",
+  openingSms: "Ouverture des messages",
+  openingWa: "Ouverture de WhatsApp",
+  openingMail: "Ouverture du courriel",
+  maid: "Chambre de service",
+  maidHint: "Une pièce en plus",
   rooms: "Pièces en plus",
   roomNames: { conservatory: "Véranda", utility: "Salle de lavage" },
   often: "Fréquence",
@@ -491,7 +559,7 @@ const fr: Copy = {
   terms: "J'accepte les conditions. Vous pouvez reporter ou annuler sans frais jusqu'à 24 heures avant. Si un point que nous avons nettoyé ne convient pas, nous reviendrons.",
   request: "Envoyer",
   doneTitle: "Demande reçue",
-  doneBody: "Appelez, textez ou envoyez un courriel et nous confirmerons l'heure.",
+  doneBody: "Textez ou envoyez un courriel et nous confirmerons l'heure.",
   edit: "Modifier la demande",
   call: "Appeler",
   text: "Texto",
@@ -543,14 +611,14 @@ export function getCopy(lang: Lang, region: Region): Copy {
   if (region === "uk") {
     return {
       ...STR.en,
-      lead: "Choose the home and the clean. The price updates as you go. Call, text, email, or WhatsApp when it looks right.",
+      lead: "Set your home details and the price updates as you go. Book on WhatsApp, by text, or email.",
       area: "Postcode",
       areaPh: "SW1A 1AA",
       areaBad: "Enter a postcode like SW1A 1AA.",
       services: ukServices,
       homes: {
-        studioflat: "Studio flat", flat: "Flat", maisonette: "Maisonette", terraced: "Terraced house",
-        semi: "Semi detached house", detached: "Detached house", bungalow: "Bungalow",
+        studioflat: "Studio flat", flat: "Flat", maisonette: "Maisonette", terraced: "Terraced",
+        semi: "Semi detached", detached: "Detached", bungalow: "Bungalow",
       },
       extraNames: {
         oven: "Inside oven", doubleoven: "Double oven", fridge: "Inside fridge or freezer", windows: "Inside windows",
@@ -567,7 +635,7 @@ export function getCopy(lang: Lang, region: Region): Copy {
       street: "Address line 1",
       payTitle: "Payment",
       payBody: "No payment now. Pay after the clean by card or bank transfer.",
-      doneBody: "Call, text, email, or WhatsApp and we will confirm the time.",
+      doneBody: "Text, email, or WhatsApp and we will confirm the time.",
     };
   }
   return base;

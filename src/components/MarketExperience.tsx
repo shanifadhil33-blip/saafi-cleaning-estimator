@@ -1,39 +1,89 @@
 "use client";
-/* Same house, drag sheet, language header, and compact booking bar as the GCC home page. Market config swaps homes, size, price, language, and contact. */
+/* GCC home page shell for a US, Canada, or UK market: same slider, floors, steppers, sheet, and booking motion. */
 import dynamic from "next/dynamic";
 import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getCopy } from "@/lib/marketCopy";
 import { shownHomes } from "@/lib/markets";
+import { SQM } from "@/lib/quote";
 import {
-  bookingRef, checkArea, formatArea, formatMoney, houseVisual, initialState, isQuebecPostal, quote, snapHours, suggestedHours,
-  type Freq, type Lang, type Market, type MState,
+  channelHref, checkArea, formatArea, formatMoney, homeSpec, initialState, isQuebecPostal, quote, sqftFor, tuneOf,
+  type BookChannel, type Freq, type Lang, type Market, type MState,
 } from "@/lib/marketQuote";
 
 const HouseCanvas = dynamic(() => import("./House"), { ssr: false });
 const EASE = [0.22, 1, 0.36, 1] as const;
+const nf = new Intl.NumberFormat("en-US");
+const fmt = (n: number) => nf.format(Math.round(n));
 const useIso = typeof window === "undefined" ? useEffect : useLayoutEffect;
 const store = {
   get: (k: string) => { try { return localStorage.getItem("mkt." + k); } catch { return null; } },
   set: (k: string, v: string) => { try { localStorage.setItem("mkt." + k, v); } catch { /* off */ } },
 };
 const isLang = (x: string | null): x is Lang => x === "en" || x === "es" || x === "fr";
-const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const bedsForHours = (h: number) => (h <= 2 ? 1 : h <= 3 ? 2 : h <= 4 ? 3 : h <= 5 ? 4 : 5);
 
-function usePhone() {
-  const [p, setP] = useState(false);
-  useIso(() => { const m = matchMedia("(max-width: 820px)"); const on = () => setP(m.matches); on(); m.addEventListener("change", on); return () => m.removeEventListener("change", on); }, []);
-  return p;
+function FitPrice({ text }: { text: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useIso(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      if (el.clientWidth < 8) return;
+      let size = 20;
+      el.style.fontSize = size + "px";
+      while (size > 12 && el.scrollWidth > el.clientWidth + 1) { size -= 0.5; el.style.fontSize = size + "px"; }
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    if (el.parentElement) ro.observe(el.parentElement);
+    return () => ro.disconnect();
+  }, [text]);
+  return <span className="price" data-price ref={ref}>{text}</span>;
 }
-function Tick() {
-  return <span className="tick" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-4.9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></span>;
+function LangSwitch({ lang, langs, setLang, className, label }: { lang: Lang; langs: Lang[]; setLang: (l: Lang) => void; className: string; label: string }) {
+  return (
+    <div className={`lang ${className}`} role="group" aria-label={label}>
+      {langs.map((id) => <button key={id} type="button" lang={id} data-lang={id} aria-pressed={lang === id} onClick={() => setLang(id)}>{id.toUpperCase()}</button>)}
+    </div>
+  );
 }
 function Chev({ s = 14 }: { s?: number }) {
   return <svg className="chev" width={s} height={s} viewBox="0 0 14 14" aria-hidden="true"><path d="M3 5.2l4 3.8 4-3.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
+function WaIcon() {
+  return <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5a7.5 7.5 0 0 0-6.5 11.2L2.6 17.4l3.8-1a7.5 7.5 0 1 0 3.6-13.9Z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>;
+}
+function Tick() {
+  return <span className="tick" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.2l2.3 2.3 4.7-4.9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></span>;
+}
 function Reveal({ open, children, id }: { open: boolean; children: React.ReactNode; id?: string }) {
   return <div className={`reveal${open ? " open" : ""}`} id={id}><div>{children}</div></div>;
+}
+function Seg<T extends string | number>({ id, label, value, options, onPick }: { id: string; label: string; value: T; options: { v: T; node: React.ReactNode; disabled?: boolean }[]; onPick: (v: T) => void }) {
+  const keys = (e: React.KeyboardEvent) => {
+    const ok = options.filter((o) => !o.disabled);
+    const i = ok.findIndex((o) => o.v === value);
+    const fwd = e.key === "ArrowDown" || e.key === "ArrowRight";
+    const back = e.key === "ArrowUp" || e.key === "ArrowLeft";
+    if (!fwd && !back) return;
+    e.preventDefault();
+    const n = ok[(i + (fwd ? 1 : -1) + ok.length) % ok.length];
+    onPick(n.v);
+    requestAnimationFrame(() => (document.querySelector(`#${id} [data-v="${n.v}"]`) as HTMLElement | null)?.focus());
+  };
+  return (
+    <LayoutGroup id={id}>
+      <div className="seg" id={id} role="radiogroup" aria-label={label} onKeyDown={keys}>
+        {options.map((o) => (
+          <button key={String(o.v)} type="button" role="radio" data-v={o.v} data-freq={id === "freqSeg" ? o.v : undefined} aria-checked={o.v === value} tabIndex={o.v === value ? 0 : -1} disabled={o.disabled} onClick={() => !o.disabled && onPick(o.v)}>
+            {o.v === value && <motion.span layoutId="thumb" className="seg-thumb" transition={{ type: "spring", stiffness: 420, damping: 36 }} />}
+            <span className="seg-lbl">{o.node}</span>
+          </button>
+        ))}
+      </div>
+    </LayoutGroup>
+  );
 }
 function Roll({ v, dir }: { v: string; dir: number }) {
   return (
@@ -54,23 +104,26 @@ function Stepper({ id, label, value, show, min, max, onStep, fewer, more }: { id
     </div>
   );
 }
-function LangSwitch({ lang, langs, setLang, className, label }: { lang: Lang; langs: Lang[]; setLang: (l: Lang) => void; className: string; label: string }) {
-  return (
-    <div className={`lang ${className}`} role="group" aria-label={label}>
-      {langs.map((id) => <button key={id} type="button" lang={id} data-lang={id} aria-pressed={lang === id} onClick={() => setLang(id)}>{id.toUpperCase()}</button>)}
-    </div>
-  );
+
+function usePhone() {
+  const [p, setP] = useState(false);
+  useIso(() => { const m = matchMedia("(max-width: 820px)"); const on = () => setP(m.matches); on(); m.addEventListener("change", on); return () => m.removeEventListener("change", on); }, []);
+  return p;
 }
-function nearest(list: number[], want: number) {
-  return list.reduce((a, n) => Math.abs(n - want) < Math.abs(a - want) ? n : a, list[0]);
-}
+const stepList = (list: number[], cur: number, d: number) => {
+  const i = Math.max(0, list.indexOf(cur));
+  return list[Math.min(list.length - 1, Math.max(0, i + d))];
+};
+const between = (list: number[], min: number, max: number) => list.filter((n) => n >= min - 0.001 && n <= max + 0.001);
+const nearest = (list: number[], want: number) => list.reduce((a, n) => Math.abs(n - want) < Math.abs(a - want) ? n : a, list[0]);
 
 export default function MarketExperience({ market }: { market: Market }) {
   const homes = shownHomes(market.id);
-  const hoursUi = market.id === "uk";
   const [lang, setLangState] = useState<Lang>(market.defaultLang);
   const [langLock, setLangLock] = useState(false);
   const [s, setS] = useState<MState>(() => initialState(market));
+  const [unit, setUnit] = useState<"ft" | "m">("ft");
+  const [sizeText, setSizeText] = useState<string | null>(null);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [booking, setBooking] = useState(false);
@@ -79,15 +132,18 @@ export default function MarketExperience({ market }: { market: Market }) {
   const copy = getCopy(lang, market.region);
   const money = (cents: number) => formatMoney(cents, market.currency);
   const q = useMemo(() => quote(market, s), [market, s]);
-  const visual = houseVisual(s.home, s.beds, s.baths);
+  const spec = homeSpec(market.id, s.home);
+  const visual = spec.visual === "apartment" && s.beds === 0 ? "studio" : spec.visual;
   const svc = market.services[s.service];
   const allow = (x: string | null): x is Lang => isLang(x) && market.langs.includes(x);
+  const tune = tuneOf(market.id);
 
   useEffect(() => {
     const qLang = new URLSearchParams(location.search).get("lang");
     const stored = store.get("lang");
     if (allow(qLang)) { setLangState(qLang); setLangLock(true); }
     else if (allow(stored)) { setLangState(stored); setLangLock(true); }
+    if (store.get("unit") === "m") setUnit("m");
   }, [market]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (langLock || market.areaKind !== "ca") return;
@@ -100,29 +156,42 @@ export default function MarketExperience({ market }: { market: Market }) {
   }, [lang, copy.title]);
   const setLang = (l: Lang) => { setLangState(l); setLangLock(true); store.set("lang", l); };
 
-  const stepList = (list: number[], cur: number, d: number) => {
-    const i = Math.max(0, list.indexOf(cur));
-    return list[Math.min(list.length - 1, Math.max(0, i + d))];
-  };
+  const bedChoices = between(market.beds, spec.beds[0], spec.beds[1]);
+  const bathChoices = between(market.baths, spec.baths[0], spec.baths[1]);
   const setBeds = (d: number) => setS((p) => {
-    const beds = stepList(market.beds, p.beds, d);
-    const hours = p.hoursTouched ? p.hours : snapHours(suggestedHours(beds, p.rooms, market.rooms), market.hourChoices);
-    return { ...p, beds, hours };
+    const sp = homeSpec(market.id, p.home);
+    const beds = stepList(between(market.beds, sp.beds[0], sp.beds[1]), p.beds, d);
+    return { ...p, beds, sqft: sqftFor(sp, beds) };
   });
-  const setBaths = (d: number) => setS((p) => ({ ...p, baths: stepList(market.baths, p.baths, d) }));
-  const setHours = (d: number) => setS((p) => {
-    const hours = stepList(market.hourChoices, p.hours, d);
-    const beds = bedsForHours(hours);
-    const baths = nearest(market.baths, beds <= 1 ? 1 : beds <= 3 ? 2 : 3);
-    return { ...p, hours, hoursTouched: true, beds, baths };
+  const setBaths = (d: number) => setS((p) => {
+    const sp = homeSpec(market.id, p.home);
+    return { ...p, baths: stepList(between(market.baths, sp.baths[0], sp.baths[1]), p.baths, d) };
   });
-  const pickHome = (id: string) => setS((p) => ({ ...p, home: id }));
+  const pickHome = (id: string) => setS((p) => {
+    const sp = homeSpec(market.id, id);
+    const beds = nearest(between(market.beds, sp.beds[0], sp.beds[1]), p.beds);
+    const baths = nearest(between(market.baths, sp.baths[0], sp.baths[1]), p.baths);
+    return { ...p, home: id, beds, baths, floors: sp.defFloors, sqft: sqftFor(sp, beds), maid: false };
+  });
   const pickService = (id: string) => setS((p) => ({ ...p, service: id, freq: market.services[id].discount ? p.freq : "once" }));
   const toggleExtra = (id: string) => setS((p) => {
     const extras = { ...p.extras };
     if (extras[id]) delete extras[id]; else extras[id] = 1;
     return { ...p, extras };
   });
+  const toU = (sq: number) => (unit === "m" ? Math.round(sq * SQM) : sq);
+  const uName = unit === "m" ? copy.sqmUnit : copy.sqftUnit;
+  const sizeStr = (sq: number) => `${fmt(toU(sq))} ${uName}`;
+  const commitSize = (raw: string) => {
+    const v = parseInt(raw.replace(/[^0-9]/g, ""), 10);
+    if (Number.isFinite(v)) {
+      const sq = unit === "m" ? v / SQM : v;
+      const snapped = Math.round(sq / 50) * 50;
+      setS((p) => ({ ...p, sqft: Math.max(spec.min, Math.min(spec.max, snapped)) }));
+    }
+    setSizeText(null);
+  };
+  const pSize = ((s.sqft - spec.min) / (spec.max - spec.min)) * 100;
 
   const sheetRef = useRef<HTMLElement>(null), scrollRef = useRef<HTMLDivElement>(null), barRef = useRef<HTMLDivElement>(null), topRef = useRef<HTMLElement>(null), kindsRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null), sumRef = useRef<HTMLDivElement>(null);
@@ -170,7 +239,6 @@ export default function MarketExperience({ market }: { market: Market }) {
     if (phone) { const sy = sheetRef.current ? sheetRef.current.getBoundingClientRect().top : sr.bottom; return { top, bottom: Math.max(0, sr.bottom - sy) + 6 }; }
     const sm = sumRef.current; return { top, bottom: sm ? sr.bottom - sm.getBoundingClientRect().top + 8 : 0 };
   }, [phone]);
-
   useIso(() => {
     const row = kindsRef.current;
     const chip = row?.querySelector<HTMLElement>(".kind[aria-checked='true']");
@@ -180,30 +248,35 @@ export default function MarketExperience({ market }: { market: Market }) {
     if (chipR.left < rowR.left) row.scrollLeft -= rowR.left - chipR.left;
     else if (chipR.right > rowR.right + 1) row.scrollLeft += chipR.right - rowR.right;
   }, [s.home, lang, phone]);
-  const homeTitle = copy.homes[s.home] ?? s.home;
-  const sub = hoursUi
-    ? `${copy.hoursCount(s.hours)}, ${copy.services[s.service]?.name ?? s.service}`
-    : `${s.beds === 0 ? copy.studio : s.beds} ${copy.beds.toLowerCase()}, ${s.baths} ${copy.baths.toLowerCase()}`;
+
+  const name = copy.homes[s.home] ?? s.home;
+  const homeTitle = lang !== "en" ? name : s.floors > 1 ? `A ${s.floors} floor ${name.toLowerCase()}` : (/^[aeiou]/i.test(name) ? `An ${name.toLowerCase()}` : `A ${name.toLowerCase()}`);
+  const bedBit = s.beds === 0 ? copy.studio : (lang === "en" ? `${s.beds}BR` : `${s.beds}`);
+  const bathBit = lang === "en" ? `${s.baths} bath` : `${s.baths}`;
+  const svcName = copy.services[s.service]?.name ?? s.service;
+  const sub = [sizeStr(s.sqft), bedBit + (s.maid ? ` + ${copy.maid}` : ""), bathBit, lang === "en" ? svcName.toLowerCase() : svcName].join(", ");
   const handle = lang === "fr" ? "Redimensionner" : lang === "es" ? "Cambiar el panel" : "Resize panel";
   const drag = lang === "fr" ? "Glissez pour regarder" : lang === "es" ? "Arrastra para mirar" : "Drag to look around";
-  const bookShort = lang === "fr" ? "Envoyer" : lang === "es" ? "Pedir" : "Request";
-  const recurring = !!svc?.discount;
+  const recurring = !!svc?.discount && s.freq !== "once";
+  const rangeHint = lang === "fr" ? `${fmt(toU(spec.min))} à ${fmt(toU(spec.max))} ${uName}` : lang === "es" ? `${fmt(toU(spec.min))} a ${fmt(toU(spec.max))} ${uName}` : `${fmt(toU(spec.min))} to ${fmt(toU(spec.max))} ${uName}`;
   const rows: [string, string][] = [[copy.cleaning, money(q.cleaningCents)]];
   if (q.discountCents) rows.push([copy.freqs[s.freq], copy.off(money(q.discountCents))]);
   if (q.weekendCents) rows.push([copy.weekendLine, money(q.weekendCents)]);
   if (q.productsCents) rows.push([copy.productsLine, money(q.productsCents)]);
   q.lines.forEach((l) => rows.push([copy.extraNames[l.id] ?? l.id, money(l.cents)]));
+  const openBook = () => setBooking(true);
+  const bookIcon = market.contact.book === "whatsapp" ? <WaIcon /> : null;
 
   const summary = (
     <div className="summary" id="summary" ref={sumRef}>
       <div className="sum-main">
         <div>
           <span className="sum-label">{copy.total}</span>
-          <div className="price-line"><span className="price" data-price>{money(q.totalCents)}</span><span className="per">{recurring && s.freq !== "once" ? copy.perVisit : ""}</span></div>
+          <div className="price-line"><span className="price" data-price>{money(q.totalCents)}</span><span className="per">{recurring ? copy.perVisit : ""}</span></div>
         </div>
-        <button type="button" className="btn primary book-btn" data-book onClick={() => setBooking(true)}><span>{bookShort}</span></button>
+        <button type="button" className="btn primary book-btn" data-book onClick={openBook}>{bookIcon}<span>{copy.book}</span></button>
       </div>
-      <div className="sum-short"><span>{recurring && s.freq !== "once" ? copy.perVisit : copy.oneTime}</span><span>{copy.confirmed}</span></div>
+      <div className="sum-short"><span>{recurring ? copy.perVisit : copy.oneTime}</span><span>{copy.confirmed}</span></div>
       <button type="button" className="link-btn" aria-expanded={detailsOpen} aria-controls="detailsPanel" onClick={() => setDetailsOpen((v) => !v)}><span>{detailsOpen ? (lang === "fr" ? "Masquer" : lang === "es" ? "Ocultar" : "Hide") : (lang === "fr" ? "Détails" : lang === "es" ? "Detalles" : "Details")}</span><Chev s={12} /></button>
       <Reveal open={detailsOpen} id="detailsPanel"><div>
         <ul className="lines">{rows.map(([a, b]) => <li key={a}><span>{a}</span><span>{b}</span></li>)}<li className="total"><span>{copy.total}</span><span>{money(q.totalCents)}</span></li></ul>
@@ -214,7 +287,7 @@ export default function MarketExperience({ market }: { market: Market }) {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="app" data-market={market.id} data-lang={lang} data-total={q.totalCents}>
+      <div className="app" data-market={market.id} data-lang={lang} data-total={q.totalCents} data-book={market.contact.book}>
         <header className="top rise" style={{ ["--d" as string]: 0 }} ref={topRef}>
           <div className="brand" />
           <LangSwitch className="lang-bar" lang={lang} langs={market.langs} setLang={setLang} label={copy.language} />
@@ -242,22 +315,39 @@ export default function MarketExperience({ market }: { market: Market }) {
                   </LayoutGroup>
                 </div>
 
-                {hoursUi ? (
-                  <div className="field">
-                    <div className="field-head"><span className="label" id="hoursLbl">{copy.hours}</span></div>
-                    <Stepper id="hoursLbl" label={copy.hours} value={s.hours} show={String(s.hours)} min={market.hourChoices[0]} max={market.hourChoices[market.hourChoices.length - 1]} onStep={setHours} fewer={copy.fewer} more={copy.more} />
-                    <p className="hint">{copy.hoursHint(s.beds)}</p>
+                <div className="field">
+                  <div className="field-head">
+                    <label htmlFor="sqftRange">{copy.homeSize}</label>
+                    <span className="unit" role="group" aria-label={copy.homeSize}>
+                      {(["ft", "m"] as const).map((u) => <button key={u} type="button" aria-pressed={unit === u} onClick={() => { setUnit(u); store.set("unit", u); }}>{u === "ft" ? copy.sqftUnit : copy.sqmUnit}</button>)}
+                    </span>
                   </div>
-                ) : (
-                  <div className="field two">
-                    <div>
-                      <div className="field-head"><span className="label" id="bedsLbl">{copy.beds}</span></div>
-                      <Stepper id="bedsLbl" label={copy.beds} value={s.beds} show={s.beds === 0 ? copy.studio : String(s.beds)} min={market.beds[0]} max={market.beds[market.beds.length - 1]} onStep={setBeds} fewer={copy.fewer} more={copy.more} />
-                    </div>
-                    <div>
-                      <div className="field-head"><span className="label" id="bathsLbl">{copy.baths}</span></div>
-                      <Stepper id="bathsLbl" label={copy.baths} value={s.baths} show={String(s.baths)} min={market.baths[0]} max={market.baths[market.baths.length - 1]} onStep={setBaths} fewer={copy.fewer} more={copy.more} />
-                    </div>
+                  <div className="size-row">
+                    <input type="range" id="sqftRange" min={spec.min} max={spec.max} step={50} value={s.sqft} style={{ ["--p" as string]: `${pSize}%` }} aria-valuetext={sizeStr(s.sqft)} onChange={(e) => { setSizeText(null); setS((x) => ({ ...x, sqft: +e.target.value })); }} />
+                    <div className="num-box"><input id="sqftNum" type="text" inputMode="numeric" autoComplete="off" aria-label={copy.homeSize} value={sizeText ?? fmt(toU(s.sqft))} onChange={(e) => setSizeText(e.target.value)} onBlur={(e) => commitSize(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /><span>{uName}</span></div>
+                  </div>
+                  <p className="hint size-hint">{rangeHint}</p>
+                </div>
+
+                <div className="field">
+                  <div className="field-head"><span className="label" id="floorsLbl">{copy.floors}</span></div>
+                  <Seg id="floorsSeg" label={copy.floors} value={s.floors} onPick={(v) => setS((x) => ({ ...x, floors: v }))} options={[1, 2, 3].map((n) => ({ v: n, node: n, disabled: n < spec.floors[0] || n > spec.floors[1] }))} />
+                </div>
+
+                <div className="field two">
+                  <div>
+                    <div className="field-head"><span className="label" id="bedsLbl">{copy.beds}</span></div>
+                    <Stepper id="bedsLbl" label={copy.beds} value={s.beds} show={s.beds === 0 ? copy.studio : String(s.beds)} min={bedChoices[0]} max={bedChoices[bedChoices.length - 1]} onStep={setBeds} fewer={copy.fewer} more={copy.more} />
+                  </div>
+                  <div>
+                    <div className="field-head"><span className="label" id="bathsLbl">{copy.baths}</span></div>
+                    <Stepper id="bathsLbl" label={copy.baths} value={s.baths} show={String(s.baths)} min={bathChoices[0]} max={bathChoices[bathChoices.length - 1]} onStep={setBaths} fewer={copy.fewer} more={copy.more} />
+                  </div>
+                </div>
+
+                {visual !== "studio" && (
+                  <div className="field maid-field">
+                    <button type="button" className="extra maid" aria-pressed={s.maid} onClick={() => setS((p) => ({ ...p, maid: !p.maid }))}><Tick /><span className="name">{copy.maid}<small>{copy.maidHint}</small></span><span className="amt">{money(Math.round(tune.maid * 100))}</span></button>
                   </div>
                 )}
 
@@ -280,15 +370,10 @@ export default function MarketExperience({ market }: { market: Market }) {
                   </div>
                 </div>
 
-                {market.productsPerHour > 0 && (
-                  <div className="field">
-                    <div className="field-head"><span className="label">{copy.supplies}</span></div>
-                    <div className="chips">
-                      <button type="button" className="chip" aria-pressed={s.products} onClick={() => setS((p) => ({ ...p, products: true }))}>{copy.supplyYes}</button>
-                      <button type="button" className="chip" aria-pressed={!s.products} onClick={() => setS((p) => ({ ...p, products: false }))}>{copy.supplyNo}</button>
-                    </div>
-                  </div>
-                )}
+                <div className="field">
+                  <div className="field-head"><span className="label" id="matLbl">{copy.materials}</span></div>
+                  <Seg id="matSeg" label={copy.materials} value={s.products ? "bring" : "own"} onPick={(v) => setS((p) => ({ ...p, products: v === "bring" }))} options={[{ v: "bring", node: copy.matBring }, { v: "own", node: copy.matOwn }]} />
+                </div>
 
                 <div className="field">
                   <button type="button" className="row-toggle" aria-expanded={extrasOpen} aria-controls="extrasPanel" onClick={() => setExtrasOpen((v) => !v)}>
@@ -302,24 +387,11 @@ export default function MarketExperience({ market }: { market: Market }) {
                   </div></Reveal>
                 </div>
 
-                {recurring ? (
-                  <div className="field">
-                    <div className="field-head"><span className="label" id="freqLbl">{copy.often}</span></div>
-                    <div className="chips" role="radiogroup" aria-labelledby="freqLbl">
-                      {(["once", "weekly", "biweekly", "monthly"] as Freq[]).map((id) => (
-                        <button key={id} type="button" className="chip" data-freq={id} role="radio" aria-checked={s.freq === id} onClick={() => setS((p) => ({ ...p, freq: id }))}>
-                          {copy.freqs[id]}{id !== "once" ? <small>{copy.save(Math.round(market.discounts[id] * 100))}</small> : null}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : <p className="hint freq-note">{copy.freqOff}</p>}
-
-                {market.weekendPerHour > 0 && svc?.mode === "hourly" && (
-                  <div className="field">
-                    <button type="button" className="chip" data-weekend="1" aria-pressed={s.weekend} onClick={() => setS((p) => ({ ...p, weekend: !p.weekend }))}>{copy.weekend}</button>
-                  </div>
-                )}
+                <div className="field">
+                  <div className="field-head"><span className="label" id="freqLbl">{copy.often}</span></div>
+                  <Seg id="freqSeg" label={copy.often} value={s.freq} onPick={(v) => setS((p) => ({ ...p, freq: v }))} options={(["once", "weekly", "biweekly", "monthly"] as Freq[]).map((id) => ({ v: id, node: copy.freqShort[id], disabled: id !== "once" && !svc?.discount }))} />
+                  {!svc?.discount && <p className="hint freq-note">{copy.freqOff}</p>}
+                </div>
               </div>
               {phone && summary}
             </div>
@@ -328,7 +400,7 @@ export default function MarketExperience({ market }: { market: Market }) {
           <section className="stagecol rise" style={{ ["--d" as string]: 2 }} aria-label="3D model of your home">
             <div className="stage" id="stage" ref={stageRef}>
               <div className="canvas-wrap" id="canvasWrap">
-                <HouseCanvas sqft={visual.sqft} floors={visual.floors} bedrooms={visual.kind === "studio" ? 0 : Math.max(1, s.beds)} bathrooms={visual.bathrooms} kind={visual.kind} insets={insets} />
+                <HouseCanvas sqft={s.sqft} floors={s.floors} bedrooms={visual === "studio" ? 0 : Math.max(1, s.beds)} bathrooms={Math.max(1, Math.round(s.baths))} kind={visual} maid={s.maid} pool={!!s.extras.pool} balcony={!!s.extras.balcony} insets={insets} />
               </div>
               <div className="stage-head" id="stageHead" ref={headRef}>
                 <div className="stage-copy">
@@ -348,16 +420,19 @@ export default function MarketExperience({ market }: { market: Market }) {
 
       <div className={`bar${phone ? " in" : ""}`} id="bar" ref={barRef}>
         <div className="bar-price">
-          <span className="price" data-price>{money(q.totalCents)}</span>
-          <span className="bar-crew">{recurring && s.freq !== "once" ? copy.perVisit : copy.oneTime}</span>
+          <span className="sr">{recurring ? `${copy.total}, ${copy.perVisit}` : copy.total}</span>
+          <FitPrice text={money(q.totalCents)} />
+          <span className="bar-crew">{svcName}</span>
         </div>
-        <button type="button" className="btn primary" data-book onClick={() => setBooking(true)}><span>{bookShort}</span></button>
+        <button type="button" className="btn primary" data-book onClick={openBook}>{bookIcon}<span>{copy.book}</span></button>
       </div>
 
       <AnimatePresence>{booking && <MarketBooking key="bk" market={market} lang={lang} s={s} area={area} setArea={setArea} onClose={() => setBooking(false)} phone={phone} />}</AnimatePresence>
     </MotionConfig>
   );
 }
+
+const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
 function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
   market: Market; lang: Lang; s: MState; area: string; setArea: (v: string) => void; onClose: () => void; phone: boolean;
@@ -371,8 +446,9 @@ function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
   const [time, setTime] = useState<number | null>(null);
   const [bad, setBad] = useState<Record<string, string>>({});
   const [done, setDone] = useState(false);
+  const [addrOpen, setAddrOpen] = useState(false);
+  const [notes, setNotes] = useState("");
   const [now] = useState(() => new Date());
-  const [ref] = useState(() => bookingRef());
   const dlg = useRef<HTMLDivElement>(null);
   const H = typeof window === "undefined" ? 800 : window.innerHeight;
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -389,6 +465,8 @@ function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
   const labelDay = (d: Date) => `${copy.months[d.getMonth()]} ${d.getDate()}`;
   const labelTime = (h: number) => (lang === "en" ? `${h % 12 || 12}${h < 12 ? "am" : "pm"}` : `${h} h`);
   const areaSt = checkArea(market, area);
+  const sendLabel = market.contact.book === "sms" ? copy.sendSms : market.contact.book === "whatsapp" ? copy.sendWa : copy.sendMail;
+  const opening = market.contact.book === "sms" ? copy.openingSms : market.contact.book === "whatsapp" ? copy.openingWa : copy.openingMail;
 
   useEffect(() => {
     const id = setTimeout(() => dlg.current?.focus({ preventScroll: true }), 280);
@@ -403,35 +481,33 @@ function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
     `${copy.area}: ${formatArea(market, area)}`,
     `${copy.service}: ${copy.services[s.service]?.name ?? s.service}`,
     `${copy.home}: ${copy.homes[s.home] ?? s.home}`,
-    market.id === "uk" ? copy.hoursCount(q.hours) : `${copy.beds}: ${s.beds}, ${copy.baths}: ${s.baths}`,
+    `${copy.homeSize}: ${fmt(s.sqft)} ${copy.sqftUnit}`,
+    `${copy.floors}: ${s.floors}`,
+    `${copy.beds}: ${s.beds}, ${copy.baths}: ${s.baths}`,
     `${copy.total}: ${money(q.totalCents)}`,
     date ? `${copy.when}: ${labelDay(date)}` : "",
     time != null ? labelTime(time) : "",
-    `${copy.refLabel}: ${ref}`,
+    notes.trim() ? notes.trim() : "",
   ].filter(Boolean).join("\n");
-  const links = [
-    { id: "tel", href: `tel:${market.contact.phoneTel}`, label: copy.call },
-    { id: "sms", href: `sms:${market.contact.phoneTel}?body=${encodeURIComponent(msg)}`, label: copy.text },
-    { id: "mailto", href: `mailto:${market.contact.email}?subject=${encodeURIComponent(copy.msgIntro)}&body=${encodeURIComponent(msg)}`, label: copy.emailUs },
-    ...(market.contact.whatsapp ? [{ id: "whatsapp", href: `https://wa.me/${market.contact.whatsapp}?text=${encodeURIComponent(msg)}`, label: copy.whatsapp }] : []),
-  ];
-  const send = () => {
+  const hrefFor = (channel: BookChannel) => channelHref(market, channel, copy.msgIntro, msg);
+  const primary = hrefFor(market.contact.book);
+  const alts = market.contact.also.map((id) => ({ id, href: hrefFor(id), label: id === "sms" ? copy.text : id === "whatsapp" ? copy.whatsapp : copy.emailUs }));
+  const valid = () => {
     const next: Record<string, string> = {};
     if (!name.trim()) next.name = copy.errName;
     if (areaSt !== "in") next.area = areaSt === "out" ? copy.areaOut : area.trim() ? copy.areaBad : copy.errArea;
     if (!date) next.day = copy.errDate;
     if (time == null) next.time = copy.errWindow;
     setBad(next);
-    if (Object.keys(next).length) return;
-    setDone(true);
+    return Object.keys(next).length === 0;
   };
 
   return (
     <div className="modal" id="modal">
       <motion.div className="scrim" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
       <motion.div className="dialog" ref={dlg} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="bkTitle"
-        initial={phone ? { y: H } : { opacity: 0, y: 16 }}
-        animate={phone ? { y: 0 } : { opacity: 1, y: 0 }}
+        initial={phone ? { y: H } : { opacity: 0, y: 16, scale: 0.98 }}
+        animate={phone ? { y: 0 } : { opacity: 1, y: 0, scale: 1 }}
         exit={phone ? { y: H } : { opacity: 0, y: 16 }}
         transition={{ duration: phone ? 0.46 : 0.35, ease: EASE }}>
         <div className="dlg-inner">
@@ -439,7 +515,7 @@ function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
           <AnimatePresence mode="wait" initial={false}>
             {!done ? (
               <motion.div key="form" id="viewForm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <div className="dlg-head"><h3 id="bkTitle">{copy.request}</h3><button type="button" className="icon-btn" aria-label={copy.edit} onClick={onClose}><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></button></div>
+                <div className="dlg-head"><h3 id="bkTitle">{copy.book}</h3><button type="button" className="icon-btn" aria-label={copy.edit} onClick={onClose}><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></button></div>
                 <p className="dlg-lead">{copy.confirmed}</p>
                 <div className="dlg-sum"><span>{`${copy.services[s.service]?.name ?? s.service}`}<br /><b>{copy.homes[s.home] ?? s.home}</b></span><strong>{money(q.totalCents)}</strong></div>
                 <label className="f"><span>{copy.fullName}</span><input id="fName" className="input" autoComplete="name" value={name} aria-invalid={bad.name ? true : undefined} onChange={(e) => { setName(e.target.value); setBad((b) => ({ ...b, name: "" })); }} />{bad.name && <p className="err show">{bad.name}</p>}</label>
@@ -467,17 +543,23 @@ function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
                   </div>
                   {bad.time && <p className="err show">{bad.time}</p>}
                 </div>
-                <div className="dlg-foot"><button type="button" className="btn primary wide" id="sendBtn" onClick={send}><span>{copy.request}</span></button></div>
+                <button type="button" className="row-toggle addr-toggle" aria-expanded={addrOpen} onClick={() => setAddrOpen((v) => !v)}><span className="label">{copy.street}</span><span className="meta"><span>{copy.optional}</span><Chev /></span></button>
+                <Reveal open={addrOpen}><div className="addr">
+                  <label className="f"><span>{copy.notes}</span><textarea className="input" id="fNotes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
+                </div></Reveal>
+                <div className="dlg-foot">
+                  <a className="btn primary wide" id="sendBtn" data-channel={market.contact.book} href={primary} onClick={(e) => { if (!valid()) e.preventDefault(); else setDone(true); }}>{market.contact.book === "whatsapp" ? <WaIcon /> : null}<span>{sendLabel}</span></a>
+                </div>
               </motion.div>
             ) : (
               <motion.div key="done" id="viewDone" className="done play" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.42, ease: EASE }}>
                 <div className="done-mark"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><path d="M7 14.5l4.6 4.5L21 9.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></div>
-                <h3>{copy.doneTitle}</h3>
+                <h3>{opening}</h3>
                 <p>{copy.doneBody}</p>
                 <p className="ref-line">{money(q.totalCents)} · {market.contact.phoneDisplay}</p>
                 <p className="ref-line">{market.contact.email}</p>
                 <div className="stack">
-                  {links.map((l) => <a key={l.id} className="btn primary wide" data-contact={l.id} href={l.href}><span>{l.label}</span></a>)}
+                  {alts.map((l) => <a key={l.id} className="btn ghost wide" data-contact={l.id} href={l.href}><span>{l.label}</span></a>)}
                   <button type="button" className="btn ghost wide" onClick={onClose}><span>{copy.edit}</span></button>
                 </div>
               </motion.div>
