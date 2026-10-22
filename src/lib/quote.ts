@@ -5,7 +5,7 @@ export const KINDS: HomeKind[] = ["studio", "apartment", "townhouse", "villa", "
 type Range = [number, number];
 export interface KindCfg { rate: number; floors: Range; beds: Range; baths: Range; size: Range; base: number; perBed: number; def: { beds: number; baths: number; floors: number } }
 export interface Company {
-  slug: string; brand: { en: string; ar: string; ur: string }; whatsapp: string; currency: string;
+  slug: string; brand: { en: string; ar: string; ur: string }; whatsapp: string; currency: string; country?: string;
   minimum: number; roundTo: number; weeklyDiscount: number; maidRoom: number;
   labour: { ratePerHour: number; materialsPerHour: number; minHours: number; maxHoursPerVisit: number; maxCleaners: number; sqftPerCleanerHour: number; bedHours: number; bathHours: number; maidHours: number; floorHours: number; typeFactor: Record<CleanType, number>; furnishedFactor: number; rangeUp: number };
   types: Record<CleanType, object>;

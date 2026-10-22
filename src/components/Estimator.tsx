@@ -5,11 +5,13 @@
 import dynamic from "next/dynamic";
 import { AnimatePresence, LayoutGroup, MotionConfig, animate, motion, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { PhoneField } from "@/components/PhoneField";
 import { ShareLocation } from "@/components/ShareLocation";
+import { formatInternational, phoneIssue as countryIssue, resolveCountry } from "@/lib/countries";
 import { STR, MORE, REAL, arBaths, arFloors, type Lang } from "@/lib/strings";
 import type { Market } from "@/lib/marketQuote";
 import MarketExperience from "@/components/MarketExperience";
-import { mapsUrl, mobileIssue, type GeoPoint } from "@/lib/phone";
+import { mapsUrl, type GeoPoint } from "@/lib/phone";
 import { KINDS, SQM, autoSize, extrasFor, fitKind, initial, isClosed, maidAllowed, quote, refCode, slots, switchKind, waUrl, waWebUrl, type CleanType, type Company, type HomeKind, type State } from "@/lib/quote";
 
 const HouseCanvas = dynamic(() => import("./House"), { ssr: false });
@@ -390,6 +392,8 @@ const LIMIT = { name: 60, mobile: 24 };
 function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin, onClose }: { c: Company; t: any; lang: Lang; brand: string; s: State; q: ReturnType<typeof quote>; money: (n: number) => string; homeLine: string; exName: (k: string) => string; range: (a: number, b: number) => string; phone: boolean; origin: { x: number; y: number }; onClose: () => void }) {
   const [f, setF] = useState({ name: "", mobile: "" });
   const [loc, setLoc] = useState<GeoPoint | null>(null);
+  const [iso, setIso] = useState(() => resolveCountry(c.country).iso);
+  const pageIso = resolveCountry(c.country).iso;
   const [day, setDay] = useState<null | "today" | "tomorrow" | "pick">(null), [dateValue, setDateValue] = useState(""), [time, setTime] = useState<number | null>(null);
   const [bad, setBad] = useState<Record<string, boolean>>({}), [done, setDone] = useState(false), [copied, setCopied] = useState(false);
   const [ref] = useState(() => refCode(c));
@@ -482,9 +486,9 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
   const sep = lang === "en" || lang === "hi" ? ", " : "، ";
   useEffect(() => { if (time != null && !daySlots.find((x) => x.h === time)?.ok) setTime(null); }, [day, dateValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const phoneIssue = mobileIssue(f.mobile);
+  const numberIssue = countryIssue(iso, f.mobile);
   const msg = t.msg({
-    ref, name: f.name.trim(), mobile: f.mobile.trim(), area: "", address: "",
+    ref, name: f.name.trim(), mobile: numberIssue ? "" : formatInternational(iso, f.mobile), area: "", address: "",
     location: loc ? mapsUrl(loc.lat, loc.lng) : "",
     date: date ? `${day === "today" ? t.today + sep : day === "tomorrow" ? t.tomorrow + sep : ""}${dayLabel(date)}` : "",
     time: time != null ? timeLabel(time) : "",
@@ -496,7 +500,7 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
   });
   const href = phone ? waUrl(c, msg) : waWebUrl(c, msg);
   const validate = () => {
-    const miss = { name: !f.name.trim(), mobile: phoneIssue != null, day: !date || !!dateErr, time: time == null };
+    const miss = { name: !f.name.trim(), mobile: numberIssue != null, day: !date || !!dateErr, time: time == null };
     setBad(miss); return !Object.values(miss).some(Boolean) ? null : miss;
   };
   const send = (e: React.MouseEvent) => {
@@ -529,7 +533,7 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
                 <p className="dlg-lead">{t.bkLead(brand)}</p>
                 <div className="dlg-sum"><span>{`${t.typeLong[s.type]}${sep}${homeLine}`}<br /><b>{t.crew(q.cleaners, q.hours)}</b></span><strong>{range(q.total, q.high)}</strong></div>
                 {field("name", t.name, { autoComplete: "name", enterKeyHint: "next", id: "fName", "aria-required": true, onKeyDown: (e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); mobileRef.current?.focus(); } } }, nameRef, t.errName)}
-                {field("mobile", t.mobile, { type: "tel", inputMode: "numeric", autoComplete: "tel", autoCorrect: "off", autoCapitalize: "off", spellCheck: false, enterKeyHint: "next", id: "fMobile", name: "mobile", placeholder: t.mobilePh, "aria-required": true, "aria-describedby": bad.mobile ? "mobileErr" : undefined, onKeyDown: (e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); (e.target as HTMLInputElement).blur(); } } }, mobileRef, phoneIssue === "bad" ? t.errPhoneBad : t.errPhone)}
+                <PhoneField iso={iso} lead={pageIso} onIso={(next) => { setIso(next); setBad((b) => ({ ...b, mobile: false })); }} value={f.mobile} onChange={(v) => { setF((x) => ({ ...x, mobile: v })); setBad((b) => ({ ...b, mobile: false })); }} invalid={!!bad.mobile} error={bad.mobile ? (numberIssue === "invalid" ? t.errPhoneBad : t.errPhone) : ""} label={t.mobile} searchLabel={t.ccSearch} countryLabel={t.ccLabel} emptyLabel={t.ccEmpty} lang={lang} inputRef={mobileRef} onEnter={() => mobileRef.current?.blur()} />
                 <div className="f">
                   <span id="dateLbl">{t.date}</span>
                   <div className="chips" role="group" aria-labelledby="dateLbl" data-bad={bad.day || undefined}>

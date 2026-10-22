@@ -129,6 +129,9 @@ export interface Copy {
   errEmail: string;
   errPhone: string;
   errPhoneBad: string;
+  ccSearch: string;
+  ccLabel: string;
+  ccEmpty: string;
   errDate: string;
   errWindow: string;
   errTerms: string;
@@ -302,6 +305,9 @@ const en: Copy = {
   errEmail: "Add a valid email",
   errPhone: "Add a mobile number",
   errPhoneBad: "Check the mobile number",
+  ccSearch: "Search",
+  ccLabel: "Country code",
+  ccEmpty: "No countries",
   errDate: "Pick a date",
   errWindow: "Pick an arrival window",
   errTerms: "Agree to the terms to continue",
@@ -457,6 +463,9 @@ const es: Copy = {
   errEmail: "Añade un correo válido",
   errPhone: "Añade un móvil",
   errPhoneBad: "Revisa el móvil",
+  ccSearch: "Buscar",
+  ccLabel: "Código de país",
+  ccEmpty: "Ningún país",
   errDate: "Elige una fecha",
   errWindow: "Elige una franja de llegada",
   errTerms: "Acepta las condiciones para seguir",
@@ -613,6 +622,9 @@ const fr: Copy = {
   errEmail: "Ajoutez un courriel valide",
   errPhone: "Ajoutez un mobile",
   errPhoneBad: "Vérifiez le mobile",
+  ccSearch: "Rechercher",
+  ccLabel: "Code pays",
+  ccEmpty: "Aucun pays",
   errDate: "Choisissez une date",
   errWindow: "Choisissez une plage d'arrivée",
   errTerms: "Acceptez les conditions pour continuer",
