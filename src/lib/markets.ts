@@ -26,7 +26,8 @@ export const markets = {
 
 for (const m of Object.values(markets)) assertMarket(m);
 
-export function marketChoices(id: Market["id"]): Market[] {
-  if (id === "uk") return [markets.uk];
-  return id === "ca" ? [markets.ca, markets.us] : [markets.us, markets.ca];
+/** Home types shown on the sheet. The 3D model maps these in houseVisual. */
+export function shownHomes(id: Market["id"]): string[] {
+  if (id === "uk") return ["flat", "terraced", "semi", "detached"];
+  return ["house", "condo", "townhouse", "apartment"];
 }

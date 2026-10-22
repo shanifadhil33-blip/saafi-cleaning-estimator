@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCopy } from "./marketCopy";
 import { markets } from "./markets";
-import { checkArea, formatMoney, initialState, isQuebecPostal, quote, type Lang, type Region } from "./marketQuote";
+import { checkArea, formatMoney, houseVisual, initialState, isQuebecPostal, quote, type Lang, type Region } from "./marketQuote";
 
 function walk(v: unknown, out: string[]) {
   if (typeof v === "string") out.push(v);
@@ -84,6 +84,18 @@ describe("market quote", () => {
     expect(markets.us.contact.whatsapp).toBe("");
     expect(markets.ca.contact.whatsapp).toBe("");
     expect(markets.uk.contact.whatsapp).toContain("555");
+  });
+
+  it("maps home types onto the dollhouse", () => {
+    expect(houseVisual("house", 3, 2).kind).toBe("villa");
+    expect(houseVisual("townhouse", 4, 2).kind).toBe("townhouse");
+    expect(houseVisual("townhouse", 4, 2).floors).toBe(3);
+    expect(houseVisual("apartment", 2, 1).kind).toBe("apartment");
+    expect(houseVisual("condo", 2, 2).kind).toBe("apartment");
+    expect(houseVisual("flat", 1, 1).floors).toBe(1);
+    expect(houseVisual("terraced", 2, 1).kind).toBe("townhouse");
+    expect(houseVisual("detached", 4, 2).sqft).toBeGreaterThan(houseVisual("semi", 4, 2).sqft);
+    expect(houseVisual("studioflat", 0, 1).kind).toBe("studio");
   });
 
   it("formats money without a dash", () => {

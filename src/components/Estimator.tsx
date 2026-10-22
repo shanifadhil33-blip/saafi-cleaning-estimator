@@ -6,6 +6,8 @@ import dynamic from "next/dynamic";
 import { AnimatePresence, LayoutGroup, MotionConfig, animate, motion, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { STR, MORE, REAL, arBaths, arFloors, type Lang } from "@/lib/strings";
+import type { Market } from "@/lib/marketQuote";
+import MarketExperience from "@/components/MarketExperience";
 import { KINDS, SQM, autoSize, extrasFor, fitKind, initial, isClosed, maidAllowed, quote, refCode, slots, switchKind, waUrl, waWebUrl, type CleanType, type Company, type HomeKind, type State } from "@/lib/quote";
 
 const HouseCanvas = dynamic(() => import("./House"), { ssr: false });
@@ -111,7 +113,7 @@ function Stepper({ id, label, value, show, min, max, onStep, fewer, more }: { id
   );
 }
 
-export default function Estimator({ company: c }: { company: Company }) {
+function GccEstimator({ company: c }: { company: Company }) {
   const [lang, setLangState] = useState<Lang>("en");
   const [s, setRaw] = useState<State>(() => initial(c));
   const [unit, setUnit] = useState<"ft" | "m">("ft");
@@ -559,4 +561,10 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
       </motion.div>
     </div>
   );
+}
+
+/** GCC home page, or the same house, sheet, and booking bar with a US, Canada, or UK config. */
+export default function Estimator({ company, market }: { company: Company; market?: Market }) {
+  if (market) return <MarketExperience market={market} />;
+  return <GccEstimator company={company} />;
 }

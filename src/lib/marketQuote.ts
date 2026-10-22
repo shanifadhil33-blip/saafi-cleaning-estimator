@@ -1,4 +1,5 @@
 /** Bedroom, bathroom, and hourly pricing for the US, Canada, and UK demos. The GCC engine stays in quote.ts. */
+import type { HomeKind } from "./houseLayout";
 export type Lang = "en" | "es" | "fr";
 export type Region = "us" | "ca" | "uk";
 export type Freq = "once" | "weekly" | "biweekly" | "monthly";
@@ -246,6 +247,29 @@ export function isQuebecPostal(raw: string) {
   const d = raw.trim().replace(/\s+/g, "").toUpperCase();
   const hit = d.match(CA);
   return !!hit && "GHJ".includes(hit[1][0]);
+}
+
+/** Map a market home onto the GCC dollhouse. Detached houses read as villas, row houses as townhouses, flats as apartments. */
+export function houseVisual(home: string, beds: number, baths: number) {
+  const b = Math.max(0, Math.min(6, Math.round(beds)));
+  const table: Record<string, [HomeKind, number, number]> = {
+    house: ["villa", 2, 1500],
+    detached: ["villa", 2, 1700],
+    semi: ["villa", 2, 1100],
+    bungalow: ["villa", 1, 1200],
+    townhouse: ["townhouse", b >= 4 ? 3 : 2, 980],
+    terraced: ["townhouse", 2, 880],
+    maisonette: ["townhouse", 2, 760],
+    condo: ["apartment", 1, 780],
+    apartment: ["apartment", 1, 640],
+    flat: ["apartment", 1, 640],
+    studioflat: ["studio", 1, 420],
+  };
+  const hit = table[home] ?? ["apartment", 1, 700];
+  const kind = hit[0];
+  const floors = hit[1];
+  const sqft = kind === "studio" ? 420 : hit[2] + b * 200;
+  return { kind, floors, sqft, bathrooms: Math.max(1, Math.round(baths || 1)) };
 }
 
 export function bookingRef(seed = Math.random()) {

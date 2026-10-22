@@ -1,7 +1,7 @@
 {
   "id": "ca",
   "currency": "CAD",
-  "langs": ["en", "fr", "es"],
+  "langs": ["en", "fr"],
   "defaultLang": "en",
   "region": "ca",
   "areaKind": "ca",
