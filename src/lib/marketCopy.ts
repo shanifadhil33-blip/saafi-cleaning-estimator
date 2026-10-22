@@ -18,6 +18,8 @@ export interface Copy {
   homes: Record<string, string>;
   beds: string;
   baths: string;
+  bedsCaption: (n: number) => string;
+  bathsCaption: (n: number) => string;
   studio: string;
   size: string;
   sizes: Record<string, string>;
@@ -180,6 +182,8 @@ const en: Copy = {
   homes: usHomes,
   beds: "Bedrooms",
   baths: "Bathrooms",
+  bedsCaption: (n) => `${n}BR`,
+  bathsCaption: (n) => `${n} bath`,
   studio: "Studio",
   size: "Square feet",
   sizes: { s: "Under 1,000 sq ft", m: "1,000 to 1,999 sq ft", l: "2,000 to 2,999 sq ft", xl: "3,000 sq ft or more" },
@@ -317,6 +321,8 @@ const es: Copy = {
   home: "Tipo de vivienda",
   homes: { house: "Casa", apartment: "Apartamento", condo: "Condominio", townhouse: "Casa adosada" },
   beds: "Dormitorios",
+  bedsCaption: (n) => (n === 1 ? "1 dormitorio" : `${n} dormitorios`),
+  bathsCaption: (n) => (n === 1 ? "1 baño" : `${n} baños`),
   baths: "Baños",
   studio: "Estudio",
   size: "Pies cuadrados",
@@ -462,6 +468,8 @@ const fr: Copy = {
   home: "Type de logement",
   homes: { house: "Maison", apartment: "Appartement", condo: "Condo", townhouse: "Maison de ville" },
   beds: "Chambres",
+  bedsCaption: (n) => (n === 1 ? "1 chambre" : `${n} chambres`),
+  bathsCaption: (n) => (n === 1 ? "1 salle de bain" : `${n} salles de bain`),
   baths: "Salles de bain",
   studio: "Studio",
   size: "Pieds carrés",

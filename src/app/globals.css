@@ -352,6 +352,8 @@ html[lang="ur"] .done h3 { font-size: 22px; line-height: 1.9; }
 .brand:empty{display:none}
 .seg button .seg-thumb{position:absolute;inset:0;top:0;bottom:0;left:0;width:auto;z-index:-1;transition:none}
 .seg button{isolation:isolate}
+.seg.seg-fit{grid-auto-columns:minmax(0,1fr);max-width:100%}
+.seg.seg-fit button{min-width:0;overflow:hidden;padding-inline:6px}
 .seg-lbl{position:relative}
 .hint.size-hint{margin:8px 2px 0;font-size:12.5px}
 .unit{display:inline-flex;gap:2px;padding:2px;border-radius:999px;background:#1f1f1f}

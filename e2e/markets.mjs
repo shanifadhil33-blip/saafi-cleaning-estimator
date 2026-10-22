@@ -41,7 +41,17 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
     ok(labels.join(",") === "EN,FR", `${tag} English and French only (${labels.join(",")})`);
   }
   ok(await p.locator("#sqftRange").count() === 1 && await p.locator("#floorsSeg").count() === 1 && await p.locator("#bedsLbl").count() === 1, `${tag} size slider, floors, bedrooms`);
-  if (path === "/uk") ok(/sq ft|pi²/.test(await p.locator("#homeSub").innerText()), `${tag} size caption`);
+  const sub = await p.locator("#homeSub").evaluate((el) => el.textContent.replace(/\s+/g, " "));
+  if (path === "/uk") ok(/sq ft|pi²/.test(sub), `${tag} size caption`);
+  if (L === "en") ok(/\dBR/.test(sub) && /bath/.test(sub), `${tag} bedroom and bathroom labels`);
+  if (L === "es") ok(/dormitorio/.test(sub) && /baño/.test(sub), `${tag} bedroom and bathroom labels`);
+  if (L === "fr") ok(/chambre/.test(sub) && /salles? de bain/.test(sub) && /2 200/.test(sub), `${tag} bedroom and bathroom labels`);
+  ok(await p.locator(".extra.maid").count() === 0, `${tag} no maid room`);
+  const inset = await p.locator("#freqSeg button").evaluateAll((els) => els.length === 4 && els.every((el) => {
+    const r = el.getBoundingClientRect();
+    return el.scrollWidth <= el.clientWidth + 1 && r.left >= 16 && r.right <= window.innerWidth - 16;
+  }));
+  ok(inset, `${tag} frequency stays inside the side padding`);
   const beforeSlide = await total(p);
   await p.locator("#sqftRange").evaluate((el) => {
     const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;

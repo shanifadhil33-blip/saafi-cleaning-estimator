@@ -150,7 +150,6 @@ export function sizeExtraDollars(m: Market, s: MState) {
   const floors = s.floors || spec.defFloors;
   let extra = Math.round((sq - expected) / 100) * tune.per100;
   extra += (floors - spec.defFloors) * tune.perFloor;
-  if (s.maid) extra += tune.maid;
   if (s.products && tune.materials) extra += tune.materials;
   return extra;
 }
@@ -275,11 +274,22 @@ export function quote(m: Market, s: MState): Quote {
   };
 }
 
-export function formatMoney(cents: number, currency: Market["currency"]) {
+const GROUP = /[\u202f\u00a0\u2009]/g;
+const localeOf = (lang: Lang) => (lang === "fr" ? "fr-CA" : lang === "es" ? "es-US" : "en-US");
+
+/** Grouped number for the active language. French uses a space, as in 2 200. */
+export function formatCount(n: number, lang: Lang = "en") {
+  return new Intl.NumberFormat(localeOf(lang), { maximumFractionDigits: 0 }).format(Math.round(n)).replace(GROUP, " ");
+}
+
+export function formatMoney(cents: number, currency: Market["currency"], lang: Lang = "en") {
   const v = Math.abs(Math.round(cents));
   const whole = Math.floor(v / 100);
   const frac = v % 100;
-  const num = `${whole.toLocaleString("en-US")}${frac ? "." + String(frac).padStart(2, "0") : ""}`;
+  const num = new Intl.NumberFormat(localeOf(lang), {
+    minimumFractionDigits: frac ? 2 : 0,
+    maximumFractionDigits: frac ? 2 : 0,
+  }).format(whole + frac / 100).replace(GROUP, " ");
   return currency === "GBP" ? `£${num}` : `${currency} ${num}`;
 }
 

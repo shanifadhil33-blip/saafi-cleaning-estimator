@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCopy } from "./marketCopy";
 import { markets, shownHomes } from "./markets";
-import { channelHref, checkArea, formatMoney, homeSpec, houseVisual, initialState, isQuebecPostal, quote, type Lang, type Region } from "./marketQuote";
+import { channelHref, checkArea, formatCount, formatMoney, homeSpec, houseVisual, initialState, isQuebecPostal, quote, type Lang, type Region } from "./marketQuote";
 
 function walk(v: unknown, out: string[]) {
   if (typeof v === "string") out.push(v);
@@ -102,6 +102,16 @@ describe("market quote", () => {
     expect(formatMoney(14800, "USD")).toBe("USD 148");
     expect(formatMoney(5280, "GBP")).toBe("£52.80");
     expect(formatMoney(15725, "CAD")).toBe("CAD 157.25");
+    expect(formatCount(2200, "en")).toBe("2,200");
+    expect(formatCount(2200, "es")).toBe("2,200");
+    expect(formatCount(2200, "fr")).toBe("2 200");
+    expect(formatMoney(220000, "CAD", "fr")).toBe("CAD 2 200");
+    expect(getCopy("en", "us").bedsCaption(2)).toBe("2BR");
+    expect(getCopy("en", "us").bathsCaption(2)).toBe("2 bath");
+    expect(getCopy("es", "us").bedsCaption(2)).toBe("2 dormitorios");
+    expect(getCopy("es", "us").bathsCaption(2)).toBe("2 baños");
+    expect(getCopy("fr", "ca").bedsCaption(2)).toBe("2 chambres");
+    expect(getCopy("fr", "ca").bathsCaption(2)).toBe("2 salles de bain");
   });
 
   it("keeps public copy free of dashes and brand names", () => {
