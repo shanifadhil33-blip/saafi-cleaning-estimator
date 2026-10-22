@@ -15,9 +15,9 @@
     "airbnb": { "mode": "rooms", "base": 95, "perBed": 34, "perBath": 28, "hourly": 0, "discount": true },
     "hourly": { "mode": "hourly", "base": 0, "perBed": 0, "perBath": 0, "hourly": 60, "discount": true }
   },
-  "homeOrder": ["house", "apartment", "condo", "townhouse"],
+  "homeOrder": ["house", "condo", "townhouse", "apartment"],
   "homes": { "house": 0, "apartment": 0, "condo": 0, "townhouse": 18 },
-  "defaultHome": "apartment",
+  "defaultHome": "house",
   "beds": [0, 1, 2, 3, 4, 5, 6],
   "baths": [1, 1.5, 2, 2.5, 3, 3.5, 4],
   "defaultBeds": 2,

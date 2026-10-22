@@ -16,6 +16,12 @@ function assertMarket(m: Market) {
   if (m.discounts.weekly !== 0.2 || m.discounts.biweekly !== 0.15 || m.discounts.monthly !== 0.1) {
     throw new Error(`${m.id} recurring discounts must be 20, 15, and 10 percent`);
   }
+  if (m.id === "ca" && m.langs.join(",") !== "en,fr") {
+    throw new Error("ca languages are English and French only");
+  }
+  if (m.id === "us" && m.langs.join(",") !== "en,es") {
+    throw new Error("us languages are English and Spanish");
+  }
 }
 
 export const markets = {

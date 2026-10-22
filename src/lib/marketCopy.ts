@@ -25,6 +25,7 @@ export interface Copy {
   conditions: Record<string, string>;
   hours: string;
   hoursHint: (beds: number) => string;
+  hoursCount: (n: number) => string;
   rooms: string;
   roomNames: Record<string, string>;
   often: string;
@@ -122,6 +123,9 @@ const windowsFr = { a: "8 h à 10 h", b: "10 h à 12 h", c: "12 h à 14 h", d: "
 const hoursEn = (beds: number) => beds <= 1 ? "Suggested 2 hours" : beds === 2 ? "Suggested 2.5 to 3 hours" : beds === 3 ? "Suggested 3 to 4 hours" : "Suggested 4 hours or more";
 const hoursEs = (beds: number) => beds <= 1 ? "Sugerido: 2 horas" : beds === 2 ? "Sugerido: 2.5 a 3 horas" : beds === 3 ? "Sugerido: 3 a 4 horas" : "Sugerido: 4 horas o más";
 const hoursFr = (beds: number) => beds <= 1 ? "Suggestion: 2 heures" : beds === 2 ? "Suggestion: 2.5 à 3 heures" : beds === 3 ? "Suggestion: 3 à 4 heures" : "Suggestion: 4 heures ou plus";
+const countEn = (n: number) => `${n} ${n === 1 ? "hour" : "hours"}`;
+const countEs = (n: number) => `${n} ${n === 1 ? "hora" : "horas"}`;
+const countFr = (n: number) => `${n} ${n >= 2 ? "heures" : "heure"}`;
 
 const usServices: Record<string, SvcCopy> = {
   standard: { name: "Standard clean", items: ["Dusting and floors", "Kitchen surfaces", "Bathrooms"] },
@@ -166,6 +170,7 @@ const en: Copy = {
   conditions: { kept: "Well kept", average: "Average", extra: "Needs extra care" },
   hours: "Hours",
   hoursHint: hoursEn,
+  hoursCount: countEn,
   rooms: "Extra rooms",
   roomNames: { conservatory: "Conservatory", utility: "Utility room" },
   often: "How often",
@@ -286,6 +291,7 @@ const es: Copy = {
   conditions: { kept: "Bien cuidada", average: "Normal", extra: "Necesita más cuidado" },
   hours: "Horas",
   hoursHint: hoursEs,
+  hoursCount: countEs,
   rooms: "Habitaciones extra",
   roomNames: { conservatory: "Invernadero", utility: "Cuarto de servicio" },
   often: "Frecuencia",
@@ -413,6 +419,7 @@ const fr: Copy = {
   conditions: { kept: "Bien entretenu", average: "Moyen", extra: "Besoin de plus de soin" },
   hours: "Heures",
   hoursHint: hoursFr,
+  hoursCount: countFr,
   rooms: "Pièces en plus",
   roomNames: { conservatory: "Véranda", utility: "Salle de lavage" },
   often: "Fréquence",
@@ -523,12 +530,14 @@ const ukServices: Record<string, SvcCopy> = {
 export function getCopy(lang: Lang, region: Region): Copy {
   const base = STR[lang] ?? STR.en;
   if (region === "ca") {
+    const frCa = lang === "fr";
+    const copy = frCa ? STR.fr : STR.en;
     return {
-      ...base,
-      area: lang === "en" ? "Postal code" : base.area,
-      areaPh: lang === "fr" ? "H2Y 1C6" : "A1A 1A1",
-      areaBad: lang === "en" ? "Enter a postal code like A1A 1A1." : lang === "es" ? "Escribe un código postal como A1A 1A1." : base.areaBad,
-      state: lang === "en" ? "Province" : lang === "es" ? "Provincia" : base.state,
+      ...copy,
+      area: frCa ? copy.area : "Postal code",
+      areaPh: frCa ? "H2Y 1C6" : "A1A 1A1",
+      areaBad: frCa ? copy.areaBad : "Enter a postal code like A1A 1A1.",
+      state: frCa ? copy.state : "Province",
     };
   }
   if (region === "uk") {

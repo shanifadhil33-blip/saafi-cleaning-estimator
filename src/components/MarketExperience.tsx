@@ -124,7 +124,7 @@ export default function MarketExperience({ market }: { market: Market }) {
     return { ...p, extras };
   });
 
-  const sheetRef = useRef<HTMLElement>(null), scrollRef = useRef<HTMLDivElement>(null), barRef = useRef<HTMLDivElement>(null), topRef = useRef<HTMLElement>(null);
+  const sheetRef = useRef<HTMLElement>(null), scrollRef = useRef<HTMLDivElement>(null), barRef = useRef<HTMLDivElement>(null), topRef = useRef<HTMLElement>(null), kindsRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<HTMLDivElement>(null), stageRef = useRef<HTMLDivElement>(null), sumRef = useRef<HTMLDivElement>(null);
   const sheet = useRef({ y: 0, snap: "half" as "full" | "half" | "peek", drag: null as null | { id: number; y0: number; s0: number; moved: boolean; last: number; t: number; v: number } });
   const [dragging, setDragging] = useState(false);
@@ -171,9 +171,18 @@ export default function MarketExperience({ market }: { market: Market }) {
     const sm = sumRef.current; return { top, bottom: sm ? sr.bottom - sm.getBoundingClientRect().top + 8 : 0 };
   }, [phone]);
 
+  useIso(() => {
+    const row = kindsRef.current;
+    const chip = row?.querySelector<HTMLElement>(".kind[aria-checked='true']");
+    if (!row || !chip || row.clientWidth < 8) return;
+    const rowR = row.getBoundingClientRect();
+    const chipR = chip.getBoundingClientRect();
+    if (chipR.left < rowR.left) row.scrollLeft -= rowR.left - chipR.left;
+    else if (chipR.right > rowR.right + 1) row.scrollLeft += chipR.right - rowR.right;
+  }, [s.home, lang, phone]);
   const homeTitle = copy.homes[s.home] ?? s.home;
   const sub = hoursUi
-    ? `${copy.hours} ${s.hours}, ${copy.services[s.service]?.name ?? s.service}`
+    ? `${copy.hoursCount(s.hours)}, ${copy.services[s.service]?.name ?? s.service}`
     : `${s.beds === 0 ? copy.studio : s.beds} ${copy.beds.toLowerCase()}, ${s.baths} ${copy.baths.toLowerCase()}`;
   const handle = lang === "fr" ? "Redimensionner" : lang === "es" ? "Cambiar el panel" : "Resize panel";
   const drag = lang === "fr" ? "Glissez pour regarder" : lang === "es" ? "Arrastra para mirar" : "Drag to look around";
@@ -222,7 +231,7 @@ export default function MarketExperience({ market }: { market: Market }) {
                 <div className="field">
                   <div className="field-head"><span className="label" id="kindLbl">{copy.home}</span></div>
                   <LayoutGroup id="kinds">
-                    <div className="kinds" role="radiogroup" aria-labelledby="kindLbl">
+                    <div className="kinds" role="radiogroup" aria-labelledby="kindLbl" ref={kindsRef}>
                       {homes.map((id) => (
                         <button key={id} type="button" role="radio" className="kind" data-kind={id} aria-checked={s.home === id} onClick={() => pickHome(id)}>
                           {s.home === id && <motion.span layoutId="kind-bg" className="kind-bg" transition={{ type: "spring", stiffness: 420, damping: 36 }} />}
@@ -394,7 +403,7 @@ function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
     `${copy.area}: ${formatArea(market, area)}`,
     `${copy.service}: ${copy.services[s.service]?.name ?? s.service}`,
     `${copy.home}: ${copy.homes[s.home] ?? s.home}`,
-    market.id === "uk" ? `${copy.hours}: ${q.hours}` : `${copy.beds}: ${s.beds}, ${copy.baths}: ${s.baths}`,
+    market.id === "uk" ? copy.hoursCount(q.hours) : `${copy.beds}: ${s.beds}, ${copy.baths}: ${s.baths}`,
     `${copy.total}: ${money(q.totalCents)}`,
     date ? `${copy.when}: ${labelDay(date)}` : "",
     time != null ? labelTime(time) : "",

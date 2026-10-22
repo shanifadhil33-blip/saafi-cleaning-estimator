@@ -106,7 +106,7 @@ describe("market quote", () => {
 
   it("keeps public copy free of dashes and brand names", () => {
     const blobs: string[] = [];
-    const cases: [Lang, Region][] = [["en", "us"], ["es", "us"], ["en", "ca"], ["fr", "ca"], ["es", "ca"], ["en", "uk"]];
+    const cases: [Lang, Region][] = [["en", "us"], ["es", "us"], ["en", "ca"], ["fr", "ca"], ["en", "uk"]];
     for (const [lang, region] of cases) walk(getCopy(lang, region), blobs);
     const text = blobs.join("\n");
     expect(text).not.toMatch(/[—–-]/);
@@ -115,5 +115,14 @@ describe("market quote", () => {
     expect(getCopy("en", "uk").lead).toMatch(/WhatsApp/);
     expect(getCopy("en", "uk").freqs.biweekly).toBe("Fortnightly");
     expect(getCopy("fr", "ca").homes.house).toBe("Maison");
+    expect(getCopy("en", "uk").hoursCount(3)).toBe("3 hours");
+    expect(getCopy("en", "uk").hoursCount(1)).toBe("1 hour");
+    expect(getCopy("es", "us").hoursCount(3)).toBe("3 horas");
+    expect(getCopy("fr", "ca").hoursCount(3)).toBe("3 heures");
+    expect(getCopy("es", "ca").title).toBe(getCopy("en", "ca").title);
+    expect(markets.ca.langs).toEqual(["en", "fr"]);
+    expect(markets.us.defaultHome).toBe("house");
+    expect(markets.ca.defaultHome).toBe("house");
+    expect(initialState(markets.us).home).toBe("house");
   });
 });

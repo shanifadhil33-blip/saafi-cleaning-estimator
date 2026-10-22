@@ -28,6 +28,19 @@ for (const [w, h] of [[360, 780], [390, 844]]) for (const [path, L] of cases) {
   const kinds = await p.locator(".kind").evaluateAll((els) => els.map((el) => el.getAttribute("data-kind")));
   ok(kinds.join() === homes[path].join(), `${tag} home types ${kinds.join(" ")}`);
   ok(await p.locator(".kind[data-kind=villa]").count() === 0, `${tag} no GCC villa chip`);
+  if (path === "/us" || path === "/ca") {
+    const chip = await p.locator(".kind[aria-checked=true]").evaluate((el) => {
+      const row = el.parentElement.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      return { kind: el.getAttribute("data-kind"), in: r.width > 0 && r.left >= row.left - 1 && r.right <= row.right + 1 };
+    });
+    ok(chip.kind === "house" && chip.in, `${tag} House is the default and in view`);
+  }
+  if (path === "/ca") {
+    const labels = await p.locator(".lang button").evaluateAll((els) => [...new Set(els.map((el) => el.textContent.trim()))]);
+    ok(labels.join(",") === "EN,FR", `${tag} English and French only (${labels.join(",")})`);
+  }
+  if (path === "/uk") ok((await p.locator("#homeSub").innerText()).startsWith("3 hours"), `${tag} hours caption`);
   ok(!(/[—–-]/.test(text)), `${tag} no dashes in copy`);
   ok(!/Saafi|Darwin|Noor/i.test(text + await p.title()), `${tag} no brand`);
   if (path !== "/uk") ok(!/WhatsApp/i.test(text), `${tag} no WhatsApp`);
