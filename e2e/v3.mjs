@@ -2,6 +2,7 @@ import { chromium } from "playwright-core";
 import fs from "fs";
 const [BASE, OUT] = [process.argv[2] || "http://localhost:3311", process.argv[3] || "/workspace/qa/saafi/v3/local"];
 fs.mkdirSync(OUT, { recursive: true });
+fs.mkdirSync("/opt/cursor/artifacts", { recursive: true });
 const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--no-sandbox","--enable-unsafe-swiftshader","--use-angle=swiftshader"] });
 let fail = 0; const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fail++; };
 const OPTIONAL = /optional|opcional|facultatif|اختياري|اختیاری|ज़रूरी नहीं/i;
@@ -73,6 +74,17 @@ for (const [w, h] of [[360, 780], [390, 844], [1280, 900], [1440, 900]]) for (co
   // booking
   await p.locator(w < 800 ? ".bar .btn" : ".summary .book-btn").click();
   await p.waitForSelector("[role=dialog]"); await p.waitForTimeout(600);
+  const phoneBox = await p.evaluate(() => {
+    const cc = document.querySelector("#ccBtn").getBoundingClientRect();
+    const input = document.querySelector("#fMobile").getBoundingClientRect();
+    const phone = document.querySelector(".phone").getBoundingClientRect();
+    const dlg = document.querySelector(".dialog").getBoundingClientRect();
+    const name = document.querySelector("#fName").getBoundingClientRect();
+    const cs = getComputedStyle(document.querySelector(".phone"));
+    return { left: cc.right <= input.x + 1, inside: phone.x >= dlg.x - 1 && phone.right <= dlg.right + 1, afterName: phone.y > name.y, radius: parseFloat(cs.borderRadius), h: phone.height };
+  });
+  ok((await p.locator("#ccBtn").getAttribute("data-iso")) === "AE" && /\+971/.test(await p.locator("#ccBtn").innerText()), `${tag} defaults to UAE +971`);
+  ok(phoneBox.left && phoneBox.inside && phoneBox.afterName && phoneBox.radius >= 20 && phoneBox.h >= 48, `${tag} country code is on the left of the mobile field`);
   await p.locator("#sendBtn").click(); await p.waitForTimeout(300);
   ok(await p.locator("#fName[aria-invalid=true]").count() === 1, `${tag} empty name is flagged`);
   ok(await p.locator("#fMobile[aria-invalid=true]").count() === 1, `${tag} empty mobile is flagged`);
@@ -80,7 +92,7 @@ for (const [w, h] of [[360, 780], [390, 844], [1280, 900], [1440, 900]]) for (co
   ok(await p.locator("#shareLoc").count() === 1, `${tag} share location button`);
   ok(!OPTIONAL.test(await p.locator("#viewForm").innerText()) && !OPTIONAL.test(await p.locator("body").innerText()), `${tag} no optional label on the form or page`);
   ok(await p.locator("#fMobile").getAttribute("type") === "tel" && await p.locator("#fMobile").getAttribute("inputmode") === "numeric", `${tag} tel with numeric keypad`);
-  ok(await p.locator("#fMobile").getAttribute("placeholder") === "050 000 0000", `${tag} gcc mobile placeholder`);
+  ok(await p.locator("#fMobile").getAttribute("placeholder") === "50 123 4567", `${tag} gcc mobile placeholder`);
   const follows = await p.evaluate(() => {
     const name = document.getElementById("fName");
     const mobile = document.getElementById("fMobile");
@@ -88,21 +100,52 @@ for (const [w, h] of [[360, 780], [390, 844], [1280, 900], [1440, 900]]) for (co
   });
   ok(follows, `${tag} mobile follows name`);
   ok(await p.locator(".err.show").count() >= 2, `${tag} missing day and time are flagged`);
+  await p.locator("#fMobile").fill("12");
+  await p.locator("#sendBtn").click();
+  ok(await p.locator("#fMobile[aria-invalid=true]").count() === 1, `${tag} short mobile is rejected`);
+  if (L === "en") {
+    await p.locator("#ccBtn").click();
+    await p.waitForSelector("#ccList");
+    const top = await p.locator(".cc-opt").evaluateAll((els) => els.slice(0, 9).map((el) => el.getAttribute("data-iso")).join(","));
+    ok(top === "AE,SA,QA,KW,BH,OM,US,CA,GB", `${tag} UAE then GCC, then the other key markets`);
+    const flags = await p.locator("#ccList img[src*='/flags/']").count();
+    const rows = await p.locator(".cc-opt").count();
+    ok(rows > 200 && flags > 0 && flags < 24, `${tag} flags load for the visible rows (${flags} of ${rows})`);
+    await p.locator(".cc-scroll").evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    await p.waitForFunction((n) => document.querySelectorAll("#ccList img[src*='/flags/']").length > n, flags);
+    await p.screenshot({ path: `/opt/cursor/artifacts/form-${w}-home-countries.png` });
+    await p.locator(".cc-search").fill("uk");
+    await p.locator(".cc-opt[data-iso=GB]").click();
+    ok((await p.locator("#fMobile").getAttribute("placeholder")) === "7700 900000", `${tag} placeholder follows the country`);
+    await p.locator("#ccBtn").click();
+    await p.locator(".cc-search").fill("971");
+    await p.locator(".cc-opt[data-iso=AE]").click();
+    await p.waitForSelector("#ccList", { state: "detached" });
+  }
+  if (L === "ar" && w === 390) {
+    await p.locator("#ccBtn").click();
+    await p.waitForSelector("#ccList");
+    await p.locator(".cc-search").fill("كندا");
+    ok((await p.locator(".cc-opt").first().getAttribute("data-iso")) === "CA", `${tag} Arabic search finds Canada`);
+    await p.keyboard.press("Escape");
+    await p.waitForSelector("#ccList", { state: "detached" });
+  }
   // pick a date shows the next days as pills, nothing in the past
   await p.locator(".chip[data-day=pick]").click(); await p.waitForTimeout(450);
   const firstDay = await p.locator("#fDays .chip").first().getAttribute("data-date");
   ok(firstDay > new Date().toISOString().slice(0, 10), `${tag} date pills start after tomorrow (${firstDay})`);
   await p.locator(".chip[data-day=tomorrow]").click(); await p.waitForTimeout(200);
   const NAME = { en: "Omar Khalid", ar: "عمر خالد بن عبدالله الهاشمي من دبي مارينا", ur: "محمد عمر خالد", hi: "अरुण कुमार" }[L];
-  await p.fill("#fName", NAME); await p.fill("#fMobile", "12");
-  await p.locator("#sendBtn").click(); await p.waitForTimeout(200);
-  ok(await p.locator("#fMobile[aria-invalid=true]").count() === 1, `${tag} short mobile is flagged`);
+  await p.fill("#fName", NAME);
   await p.fill("#fMobile", "050 000 0000");
   await p.locator(".chips.times .chip:not([disabled])").nth(1).click();
   await p.screenshot({ path: `${OUT}/${w}-${L}-booking.png` });
-  const hrefBefore = await p.locator("#sendBtn").getAttribute("href"); const [pop] = await Promise.all([ctx.waitForEvent("page"), p.locator("#sendBtn").click()]);
+  if (L === "en") await p.locator(".dialog").screenshot({ path: `/opt/cursor/artifacts/form-${w}-home.png` });
+  const hrefBefore = await p.locator("#sendBtn").getAttribute("href");
+  ok(decodeURIComponent(hrefBefore).includes("+971 50 000 0000"), `${tag} WhatsApp body uses the international number`);
+  const [pop] = await Promise.all([ctx.waitForEvent("page"), p.locator("#sendBtn").click()]);
   const pop0 = hrefBefore; const url = decodeURIComponent(pop.url().replace(/\+/g, " ")) + " " + decodeURIComponent(pop0); await pop.close();
-  ok(/971500000000/.test(url) && url.includes(NAME) && url.includes("050 000 0000") && !url.includes("maps.google.com") && !/Al Barsha/.test(url), `${tag} WhatsApp opens with mobile and without a location`);
+  ok(/971500000000/.test(url) && url.includes(NAME) && url.includes("+971 50 000 0000") && !url.includes("maps.google.com") && !/Al Barsha/.test(url), `${tag} WhatsApp opens with the international mobile and without a location`);
   if (L === "hi") ok(/नई सफाई बुकिंग/.test(url) && /नाम: /.test(url), `${tag} WhatsApp message in Hindi`);
   if (w === 390) { const m = new URL(pop0).searchParams.get("text"); fs.writeFileSync(`${OUT}/message-${L}.txt`, m); }
   if (w === 1440) ok(/web\.whatsapp\.com|api\.whatsapp\.com|whatsapp\.com/.test(url), `${tag} desktop opens WhatsApp Web`);
@@ -146,7 +189,7 @@ for (const [w, h] of [[360, 780], [390, 844], [1280, 900], [1440, 900]]) for (co
   await p.locator(".chips.times .chip:not([disabled])").first().click();
   const href = await p.locator("#sendBtn").getAttribute("href");
   const text = decodeURIComponent(href);
-  ok(text.includes("050 000 0000"), `${tag} message includes mobile`);
+  ok(text.includes("+971 50 000 0000"), `${tag} message includes the international mobile`);
   ok(text.includes(MAP) === (mode === "ok"), `${tag} maps link ${mode === "ok" ? "appended" : "omitted"}`);
   await ctx.close();
 }
@@ -159,7 +202,9 @@ for (const [w, h] of [[360, 780], [390, 844], [1280, 900], [1440, 900]]) for (co
   await p.locator(".bar .btn").click();
   await p.waitForSelector("#fMobile");
   ok(await p.locator("#fArea, .addr-toggle").count() === 0 && await p.locator("#shareLoc").count() === 1, "company page share location");
-  ok(await p.locator("#fMobile").getAttribute("placeholder") === "050 000 0000", "company page mobile placeholder");
+  ok((await p.locator("#ccBtn").getAttribute("data-iso")) === "AE", "company form defaults to UAE");
+  ok(await p.locator("#fMobile").getAttribute("placeholder") === "50 123 4567", "company page mobile placeholder");
+  await p.locator(".dialog").screenshot({ path: "/opt/cursor/artifacts/form-390-saafi.png" });
   await ctx.close();
 }
 await b.close(); console.log(fail ? `${fail} FAILED` : "ALL PASS"); process.exit(fail ? 1 : 0);

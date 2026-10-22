@@ -8,7 +8,8 @@ const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fail++;
 const titles = { en: "Price your home cleaning", es: "Calcula el precio de la limpieza", fr: "Estimez le prix du ménage" };
 const homes = { "/us": ["house", "apartment", "condo", "townhouse"], "/ca": ["house", "apartment", "condo", "townhouse"], "/uk": ["flat", "terraced", "semi", "detached"] };
 const mobiles = { "/us": "(555) 010 0199", "/ca": "(555) 010 0199", "/uk": "07700 900123" };
-const placeholders = { "/us": "(555) 010 0100", "/ca": "(555) 010 0100", "/uk": "07700 900000" };
+const placeholders = { "/us": "201 555 0123", "/ca": "416 555 0199", "/uk": "7700 900000" };
+const sentIntl = { "/us": "+1 555 010 0199", "/ca": "+1 555 010 0199", "/uk": "+44 7700 900123" };
 const cases = [["/us", "en"], ["/us", "es"], ["/ca", "en"], ["/ca", "fr"], ["/uk", "en"]];
 const widths = [[360, 780], [390, 844], [1280, 900], [1440, 900]];
 const bodyOf = (href, key) => decodeURIComponent((href.split(`${key}=`)[1] || "").replace(/\+/g, " "));
@@ -104,6 +105,18 @@ for (const [w, h] of widths) for (const [path, L] of cases) {
   ok(await p.locator("[data-freq=weekly]").isDisabled(), `${tag} one off clean has no recurring discount`);
   await p.locator(phone ? ".bar .btn" : ".summary .book-btn").click();
   await p.waitForSelector("[role=dialog]");
+  const expectIso = path === "/us" ? "US" : path === "/ca" ? "CA" : "GB";
+  const intl = sentIntl[path];
+  ok((await p.locator("#ccBtn").getAttribute("data-iso")) === expectIso, `${tag} default country ${expectIso}`);
+  ok((await p.locator("#ccBtn").innerText()).includes(path === "/uk" ? "+44" : "+1"), `${tag} dial code`);
+  const placed = await p.evaluate(() => {
+    const cc = document.querySelector("#ccBtn").getBoundingClientRect();
+    const input = document.querySelector("#fMobile").getBoundingClientRect();
+    const phone = document.querySelector(".phone").getBoundingClientRect();
+    const name = document.querySelector("#fName").getBoundingClientRect();
+    return cc.right <= input.x + 1 && phone.y > name.y && phone.height >= 48;
+  });
+  ok(placed, `${tag} country code sits on the left of the mobile field`);
   await p.locator("#sendBtn").click();
   ok(await p.locator("#fName[aria-invalid=true]").count() === 1, `${tag} name is required`);
   ok(await p.locator("#fMobile[aria-invalid=true]").count() === 1, `${tag} mobile is required`);
@@ -127,8 +140,10 @@ for (const [w, h] of widths) for (const [path, L] of cases) {
   await p.locator("#fMobile").fill(mobiles[path]);
   await p.locator("[data-day=tomorrow]").click();
   await p.locator(".chips.times .chip:not([disabled])").first().click();
+  if (L === "en") await p.locator(".dialog").screenshot({ path: `/opt/cursor/artifacts/form-${w}-${path.slice(1)}.png` });
   await p.locator("#sendBtn").evaluate((el) => el.addEventListener("click", (e) => e.preventDefault(), true));
   var sendHref = await p.locator("#sendBtn").getAttribute("href");
+  ok(decodeURIComponent(sendHref).includes(intl), `${tag} message uses ${intl}`);
   await p.locator("#sendBtn").click();
   await p.waitForSelector("#viewDone");
   const drawn = await p.waitForFunction(() => {
@@ -142,12 +157,13 @@ for (const [w, h] of widths) for (const [path, L] of cases) {
   ok(mail.includes("hello@example.com"), `${tag} email alternative`);
   const sendBody = bodyOf(send, path === "/uk" ? "text" : "body");
   const mailBody = bodyOf(mail, "body");
-  ok(sendBody.includes(mobiles[path]) && !sendBody.includes("maps.google.com"), `${tag} primary includes mobile and works without location`);
-  ok(mailBody.includes(mobiles[path]) && !mailBody.includes("maps.google.com"), `${tag} email includes mobile and works without location`);
+  ok(sendBody.includes(intl) && !sendBody.includes("maps.google.com"), `${tag} primary includes ${intl} and works without location`);
+  ok(mailBody.includes(intl) && !mailBody.includes("maps.google.com"), `${tag} email includes ${intl} and works without location`);
   if (path === "/uk") {
     ok(send.startsWith("https://wa.me/445550100?text="), `${tag} Book sends WhatsApp`);
     const sms = await p.locator("[data-contact=sms]").getAttribute("href");
     ok(sms.startsWith("sms:+445550100?body=") && (await p.locator("[data-contact=whatsapp]").count()) === 0, `${tag} text alternative, no second WhatsApp`);
+    ok(decodeURIComponent(sms).includes(intl), `${tag} text body uses ${intl}`);
   } else {
     ok(send.startsWith("sms:+15550100?body="), `${tag} Book sends a text`);
     ok((await p.locator("[data-contact=sms]").count()) === 0 && !/WhatsApp/i.test(await p.locator("#viewDone").innerText()), `${tag} no WhatsApp alternative`);
@@ -179,7 +195,10 @@ for (const [w, h] of widths) for (const [path, L] of cases) {
   await p.locator(".bar .btn").click();
   await p.waitForSelector("#fMobile");
   ok(await p.locator("#fArea, .addr-toggle").count() === 0 && await p.locator("#shareLoc").count() === 1, "company booking uses location instead of area");
-  ok(await p.locator("#fMobile").getAttribute("placeholder") === "050 000 0000", "company mobile placeholder");
+  ok((await p.locator("#ccBtn").getAttribute("data-iso")) === "AE", "company form defaults to UAE when no country is set");
+  ok(await p.locator("#fMobile").getAttribute("placeholder") === "50 123 4567", "company mobile placeholder");
+  await p.locator(".dialog").screenshot({ path: "/opt/cursor/artifacts/form-390-saafi.png" });
+  await p.keyboard.press("Escape");
   await p.close();
 }
 
@@ -249,6 +268,50 @@ for (const [w, h] of [[1280, 800], [1440, 900], [1920, 1080]]) for (const [path,
   if (path !== "/" && path !== "/c/saafi") ok(!/Saafi|Darwin|Noor/i.test(await p.evaluate(() => document.title + "\n" + document.body.innerText)), `${tag} no brand`);
   ok(!OPTIONAL.test(await p.locator("body").innerText()), `${tag} no optional label`);
   await p.screenshot({ path: `${shots}/desktop-${w}x${h}-${name}.png` });
+  if (w === 1280 || w === 1440) {
+    const spec = path === "/uk"
+      ? { iso: "GB", dial: "+44", sample: "07700900000", intl: "+44 7700 900000" }
+      : path === "/ca"
+        ? { iso: "CA", dial: "+1", sample: "4165550199", intl: "+1 416 555 0199" }
+        : path === "/us"
+          ? { iso: "US", dial: "+1", sample: "2015550123", intl: "+1 201 555 0123" }
+          : { iso: "AE", dial: "+971", sample: "0501234567", intl: "+971 50 123 4567" };
+    await p.locator(".summary .book-btn").click();
+    await p.waitForSelector("#ccBtn");
+    await p.waitForTimeout(700);
+    ok((await p.locator("#ccBtn").getAttribute("data-iso")) === spec.iso, `${tag} form defaults to ${spec.iso}`);
+    ok((await p.locator("#ccBtn").innerText()).includes(spec.dial), `${tag} form dial ${spec.dial}`);
+    const fit = await p.evaluate(() => {
+      const phone = document.querySelector(".phone").getBoundingClientRect();
+      const dlg = document.querySelector(".dialog").getBoundingClientRect();
+      const cc = document.querySelector("#ccBtn").getBoundingClientRect();
+      const input = document.querySelector("#fMobile").getBoundingClientRect();
+      const name = document.querySelector("#fName").getBoundingClientRect();
+      return phone.x >= dlg.x - 1 && phone.right <= dlg.right + 1 && cc.right <= input.x + 1 && phone.y > name.y && phone.height >= 48 && parseFloat(getComputedStyle(document.querySelector(".phone")).borderRadius) >= 20;
+    });
+    ok(fit, `${tag} phone field fits the desktop dialog`);
+    await p.locator("#fMobile").fill(spec.sample);
+    await p.locator(".dialog").screenshot({ path: `${shots}/form-${w}-${name}.png` });
+    ok(decodeURIComponent(await p.locator("#sendBtn").getAttribute("href")).includes(spec.intl), `${tag} desktop message uses ${spec.intl}`);
+    if (w === 1440 || w === 1280) {
+      const lead = path === "/us" ? "US,AE,SA,QA,KW,BH,OM,CA,GB" : path === "/ca" ? "CA,AE,SA,QA,KW,BH,OM,US,GB" : path === "/uk" ? "GB,AE,SA,QA,KW,BH,OM,US,CA" : "AE,SA,QA,KW,BH,OM,US,CA,GB";
+      await p.locator("#ccBtn").click();
+      await p.waitForSelector("#ccList");
+      const top = await p.locator(".cc-opt").evaluateAll((els) => els.slice(0, 9).map((el) => el.getAttribute("data-iso")).join(","));
+      ok(top === lead, `${tag} page market leads the list`);
+      const flags = await p.locator("#ccList img[src*='/flags/']").count();
+      ok(flags > 0 && flags < 24, `${tag} picker loads visible flags only (${flags})`);
+      await p.screenshot({ path: `${shots}/form-${w}-${name}-countries.png` });
+      if (path === "/us") {
+        await p.locator(".cc-search").fill("भारत");
+        ok((await p.locator(".cc-opt").first().getAttribute("data-iso")) === "IN", `${tag} Hindi search finds India`);
+      }
+      await p.keyboard.press("Escape");
+      await p.waitForSelector("#ccList", { state: "detached" });
+    }
+    await p.keyboard.press("Escape");
+    await p.waitForSelector("[role=dialog]", { state: "detached" });
+  }
   ok(errs.length === 0, `${tag} no page errors ${errs.join("|")}`);
   await ctx.close();
 }
@@ -314,12 +377,12 @@ for (const geo of geoCases) {
   await p.waitForSelector("#viewDone");
   const primaryBody = bodyOf(primaryHref, geo.path === "/uk" ? "text" : "body");
   const mailBody = bodyOf(await p.locator("[data-contact=email]").getAttribute("href"), "body");
-  ok(primaryBody.includes(mobile) && mailBody.includes(mobile), `${tag} messages include mobile`);
+  ok(primaryBody.includes(sentIntl[geo.path]) && mailBody.includes(sentIntl[geo.path]), `${tag} messages include the international mobile`);
   const expectLink = geo.mode === "ok";
   ok(primaryBody.includes(MAP) === expectLink && mailBody.includes(MAP) === expectLink, `${tag} maps link ${expectLink ? "appended" : "omitted"}`);
   if (geo.path === "/uk") {
     const smsBody = bodyOf(await p.locator("[data-contact=sms]").getAttribute("href"), "body");
-    ok(smsBody.includes(MAP) === expectLink && smsBody.includes(mobile), `${tag} text maps link`);
+    ok(smsBody.includes(MAP) === expectLink && smsBody.includes(sentIntl[geo.path]), `${tag} text maps link`);
   }
   await ctx.close();
 }

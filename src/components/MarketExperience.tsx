@@ -3,7 +3,9 @@
 import dynamic from "next/dynamic";
 import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { PhoneField } from "@/components/PhoneField";
 import { ShareLocation } from "@/components/ShareLocation";
+import { formatInternational, marketCountry, phoneIssue as countryIssue } from "@/lib/countries";
 import { getCopy } from "@/lib/marketCopy";
 import { shownHomes } from "@/lib/markets";
 import { SQM } from "@/lib/quote";
@@ -11,7 +13,7 @@ import {
   channelHref, formatCount, formatMoney, homeSpec, initialState, quote, sqftFor,
   type BookChannel, type Freq, type Lang, type Market, type MState,
 } from "@/lib/marketQuote";
-import { mapsUrl, mobileIssue, type GeoPoint } from "@/lib/phone";
+import { mapsUrl, type GeoPoint } from "@/lib/phone";
 
 const HouseCanvas = dynamic(() => import("./House"), { ssr: false });
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -458,6 +460,8 @@ function MarketBooking({ market, lang, s, onClose, phone }: {
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("");
   const [loc, setLoc] = useState<GeoPoint | null>(null);
+  const [iso, setIso] = useState(() => marketCountry(market.id).iso);
+  const pageIso = marketCountry(market.id).iso;
   const [day, setDay] = useState<null | "today" | "tomorrow" | "pick">(null);
   const [dateValue, setDateValue] = useState("");
   const [time, setTime] = useState<number | null>(null);
@@ -491,10 +495,12 @@ function MarketBooking({ market, lang, s, onClose, phone }: {
     return () => { clearTimeout(id); document.removeEventListener("keydown", k); };
   }, [onClose]);
 
+  const numberIssue = countryIssue(iso, mobile);
+  const intl = numberIssue ? "" : formatInternational(iso, mobile);
   const msg = [
     copy.msgIntro, "",
     `${copy.fullName}: ${name.trim()}`,
-    `${copy.mobile}: ${mobile.trim()}`,
+    intl ? `${copy.mobile}: ${intl}` : "",
     `${copy.service}: ${copy.services[s.service]?.name ?? s.service}`,
     `${copy.home}: ${copy.homes[s.home] ?? s.home}`,
     `${copy.homeSize}: ${fmt(s.sqft)} ${copy.sqftUnit}`,
@@ -510,10 +516,9 @@ function MarketBooking({ market, lang, s, onClose, phone }: {
   const alts = market.contact.also.map((id) => ({ id, href: hrefFor(id), label: id === "sms" ? copy.text : id === "whatsapp" ? copy.whatsapp : copy.emailUs }));
   const valid = () => {
     const next: Record<string, string> = {};
-    const phoneIssue = mobileIssue(mobile);
     if (!name.trim()) next.name = copy.errName;
-    if (phoneIssue === "empty") next.mobile = copy.errPhone;
-    else if (phoneIssue === "bad") next.mobile = copy.errPhoneBad;
+    if (numberIssue === "empty") next.mobile = copy.errPhone;
+    else if (numberIssue === "invalid") next.mobile = copy.errPhoneBad;
     if (!date) next.day = copy.errDate;
     if (time == null) next.time = copy.errWindow;
     setBad(next);
@@ -539,7 +544,7 @@ function MarketBooking({ market, lang, s, onClose, phone }: {
                 <p className="dlg-lead">{copy.confirmed}</p>
                 <div className="dlg-sum"><span>{`${copy.services[s.service]?.name ?? s.service}`}<br /><b>{copy.homes[s.home] ?? s.home}</b></span><strong>{money(q.totalCents)}</strong></div>
                 <label className="f"><span>{copy.fullName}</span><input ref={nameRef} id="fName" className="input" autoComplete="name" enterKeyHint="next" value={name} aria-invalid={bad.name ? true : undefined} aria-required="true" onChange={(e) => { setName(e.target.value); setBad((b) => ({ ...b, name: "" })); }} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); mobileRef.current?.focus(); } }} />{bad.name && <p className="err show">{bad.name}</p>}</label>
-                <label className="f"><span>{copy.mobile}</span><input ref={mobileRef} id="fMobile" name="mobile" className="input" type="tel" inputMode="numeric" autoComplete="tel" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="next" placeholder={copy.mobilePh} maxLength={24} value={mobile} aria-invalid={bad.mobile ? true : undefined} aria-required="true" aria-describedby={bad.mobile ? "mobileErr" : undefined} onChange={(e) => { setMobile(e.target.value); setBad((b) => ({ ...b, mobile: "" })); }} />{bad.mobile && <p className="err show" id="mobileErr">{bad.mobile}</p>}</label>
+                <PhoneField iso={iso} lead={pageIso} onIso={(next) => { setIso(next); setBad((b) => ({ ...b, mobile: "" })); }} value={mobile} onChange={(v) => { setMobile(v); setBad((b) => ({ ...b, mobile: "" })); }} invalid={!!bad.mobile} error={bad.mobile} label={copy.mobile} searchLabel={copy.ccSearch} countryLabel={copy.ccLabel} emptyLabel={copy.ccEmpty} lang={lang} inputRef={mobileRef} />
                 <div className="f">
                   <span id="dateLbl">{copy.when}</span>
                   <div className="chips" role="group" aria-labelledby="dateLbl">
