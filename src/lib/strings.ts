@@ -253,7 +253,7 @@ export const MORE: Record<Lang, any> = {
 };
 
 /* Booking realism: crew and hours, materials, furnished, slots, address, reference, copy. */
-type Msg = { ref: string; name: string; area: string; address: string; date: string; time: string; home: string; type: string; freq: string; crew: string; materials: string; furnished: string; extras: string; estimate: string; notes: string };
+type Msg = { ref: string; name: string; mobile: string; area: string; address: string; location: string; date: string; time: string; home: string; type: string; freq: string; crew: string; materials: string; furnished: string; extras: string; estimate: string; notes: string };
 const lines = (rows: [string, string][]) => rows.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join("\n");
 export const REAL: Record<Lang, any> = {
   en: {
@@ -268,8 +268,11 @@ export const REAL: Record<Lang, any> = {
     closed: (d: string) => `We do not work on ${d}. Please pick another day.`, past: "Please pick today or a later date.",
     addr: "Address details", optional: "Optional", building: "Building or community", unit: "Flat or villa number", notes: "Notes for the team", notesPh: "Parking, access, gate code",
     copy: "Copy details", copied: "Copied", web: "Use WhatsApp Web", ref: "Ref",
+    mobile: "Mobile", mobilePh: "050 000 0000", errPhone: "Add a mobile number", errPhoneBad: "Check the mobile number",
+    shareLoc: "Share my location", shareFinding: "Finding your location", shareAdded: "Location added", shareRemove: "Remove",
+    shareDenied: "Location stayed off. You can still book.", shareUnavailable: "Location is not available here. You can still book.",
     matBringMsg: "Please bring them", matOwnMsg: "I have them",
-    msg: (o: Msg) => `New cleaning booking, ref ${o.ref}\n\n` + lines([["Name", o.name], ["Area", o.area], ["Address", o.address], ["Date", o.date], ["Start", o.time], ["Home", o.home], ["Cleaning", `${o.type}, ${o.freq}`], ["Crew", o.crew], ["Materials", o.materials], ["Furnished", o.furnished], ["Extras", o.extras], ["Estimate", o.estimate], ["Notes", o.notes]]) + `\n\nTo confirm, reply: Confirmed ${o.ref}`,
+    msg: (o: Msg) => `New cleaning booking, ref ${o.ref}\n\n` + lines([["Name", o.name], ["Mobile", o.mobile], ["Area", o.area], ["Address", o.address], ["Date", o.date], ["Start", o.time], ["Home", o.home], ["Cleaning", `${o.type}, ${o.freq}`], ["Crew", o.crew], ["Materials", o.materials], ["Furnished", o.furnished], ["Extras", o.extras], ["Estimate", o.estimate], ["Notes", o.notes], ["Location", o.location]]) + `\n\nTo confirm, reply: Confirmed ${o.ref}`,
   },
   ar: {
     materials: "مواد التنظيف", matBring: "أحضروها معكم", matOwn: "متوفرة لدي", matNote: (m: string) => `${m} لكل ساعة عمل للمواد`,
@@ -283,8 +286,11 @@ export const REAL: Record<Lang, any> = {
     closed: (d: string) => `لا نعمل يوم ${d}. يرجى اختيار يوم آخر.`, past: "يرجى اختيار اليوم أو تاريخ لاحق.",
     addr: "تفاصيل العنوان", optional: "اختياري", building: "اسم البناية أو المجمع", unit: "رقم الشقة أو الفيلا", notes: "ملاحظات للفريق", notesPh: "المواقف، الدخول، رمز البوابة",
     copy: "نسخ التفاصيل", copied: "تم النسخ", web: "استخدم واتساب ويب", ref: "رقم الحجز",
+    mobile: "الجوال", mobilePh: "050 000 0000", errPhone: "أدخل رقم الجوال", errPhoneBad: "راجع رقم الجوال",
+    shareLoc: "شارك موقعي", shareFinding: "جارٍ تحديد الموقع", shareAdded: "تمت إضافة الموقع", shareRemove: "إزالة",
+    shareDenied: "بقي الموقع مغلقاً. يمكنك إكمال الحجز.", shareUnavailable: "الموقع غير متاح هنا. يمكنك إكمال الحجز.",
     matBringMsg: "يرجى إحضارها", matOwnMsg: "متوفرة لدي",
-    msg: (o: Msg) => `حجز تنظيف جديد، رقم ${o.ref}\n\n` + lines([["الاسم", o.name], ["المنطقة", o.area], ["العنوان", o.address], ["التاريخ", o.date], ["وقت البدء", o.time], ["المنزل", o.home], ["التنظيف", `${o.type}، ${o.freq}`], ["الفريق", o.crew], ["مواد التنظيف", o.materials], ["الأثاث", o.furnished], ["الإضافات", o.extras], ["السعر التقديري", o.estimate], ["ملاحظات", o.notes]]) + `\n\nللتأكيد، أرسلوا: تم التأكيد ${o.ref}`,
+    msg: (o: Msg) => `حجز تنظيف جديد، رقم ${o.ref}\n\n` + lines([["الاسم", o.name], ["الجوال", o.mobile], ["المنطقة", o.area], ["العنوان", o.address], ["التاريخ", o.date], ["وقت البدء", o.time], ["المنزل", o.home], ["التنظيف", `${o.type}، ${o.freq}`], ["الفريق", o.crew], ["مواد التنظيف", o.materials], ["الأثاث", o.furnished], ["الإضافات", o.extras], ["السعر التقديري", o.estimate], ["ملاحظات", o.notes], ["الموقع", o.location]]) + `\n\nللتأكيد، أرسلوا: تم التأكيد ${o.ref}`,
   },
   ur: {
     materials: "صفائی کا سامان", matBring: "آپ لے آئیں", matOwn: "میرے پاس ہے", matNote: (m: string) => `سامان کے لیے ${m} فی گھنٹہ فی کلینر`,
@@ -298,8 +304,11 @@ export const REAL: Record<Lang, any> = {
     closed: (d: string) => `ہم ${d} کو کام نہیں کرتے۔ کوئی اور دن چنیں۔`, past: "آج یا بعد کی تاریخ چنیں۔",
     addr: "پتے کی تفصیل", optional: "اختیاری", building: "عمارت یا کمیونٹی کا نام", unit: "فلیٹ یا ولا نمبر", notes: "ٹیم کے لیے نوٹ", notesPh: "پارکنگ، داخلہ، گیٹ کوڈ",
     copy: "تفصیل کاپی کریں", copied: "کاپی ہو گئی", web: "واٹس ایپ ویب استعمال کریں", ref: "حوالہ",
+    mobile: "موبائل", mobilePh: "050 000 0000", errPhone: "موبائل نمبر لکھیں", errPhoneBad: "موبائل نمبر چیک کریں",
+    shareLoc: "میرا مقام بتائیں", shareFinding: "مقام تلاش ہو رہا ہے", shareAdded: "مقام شامل ہو گیا", shareRemove: "ہٹائیں",
+    shareDenied: "مقام بند رہا۔ آپ پھر بھی بک کر سکتے ہیں۔", shareUnavailable: "یہاں مقام دستیاب نہیں۔ آپ پھر بھی بک کر سکتے ہیں۔",
     matBringMsg: "براہ کرم ساتھ لائیں", matOwnMsg: "میرے پاس ہے",
-    msg: (o: Msg) => `صفائی کی نئی بکنگ، حوالہ ${o.ref}\n\n` + lines([["نام", o.name], ["علاقہ", o.area], ["پتہ", o.address], ["تاریخ", o.date], ["شروع کا وقت", o.time], ["گھر", o.home], ["صفائی", `${o.type}، ${o.freq}`], ["ٹیم", o.crew], ["صفائی کا سامان", o.materials], ["فرنیچر", o.furnished], ["اضافی سروسز", o.extras], ["اندازاً قیمت", o.estimate], ["نوٹ", o.notes]]) + `\n\nتصدیق کے لیے جواب دیں: تصدیق شدہ ${o.ref}`,
+    msg: (o: Msg) => `صفائی کی نئی بکنگ، حوالہ ${o.ref}\n\n` + lines([["نام", o.name], ["موبائل", o.mobile], ["علاقہ", o.area], ["پتہ", o.address], ["تاریخ", o.date], ["شروع کا وقت", o.time], ["گھر", o.home], ["صفائی", `${o.type}، ${o.freq}`], ["ٹیم", o.crew], ["صفائی کا سامان", o.materials], ["فرنیچر", o.furnished], ["اضافی سروسز", o.extras], ["اندازاً قیمت", o.estimate], ["نوٹ", o.notes], ["مقام", o.location]]) + `\n\nتصدیق کے لیے جواب دیں: تصدیق شدہ ${o.ref}`,
   },
   hi: {
     materials: "सफाई का सामान", matBring: "आप ले आएँ", matOwn: "मेरे पास है", matNote: (m: string) => `सामान के लिए ${m} हर क्लीनर घंटा`,
@@ -313,7 +322,10 @@ export const REAL: Record<Lang, any> = {
     closed: (d: string) => `हम ${d} को काम नहीं करते। कोई और दिन चुनें।`, past: "आज या बाद की तारीख चुनें।",
     addr: "पते की डिटेल", optional: "ज़रूरी नहीं", building: "बिल्डिंग या कम्युनिटी", unit: "फ्लैट या Villa नंबर", notes: "टीम के लिए नोट", notesPh: "पार्किंग, एंट्री, गेट कोड",
     copy: "डिटेल कॉपी करें", copied: "कॉपी हो गया", web: "WhatsApp Web इस्तेमाल करें", ref: "रेफ",
+    mobile: "मोबाइल", mobilePh: "050 000 0000", errPhone: "मोबाइल नंबर लिखें", errPhoneBad: "मोबाइल नंबर जाँचें",
+    shareLoc: "अपना स्थान साझा करें", shareFinding: "स्थान खोजा जा रहा है", shareAdded: "स्थान जुड़ गया", shareRemove: "हटाएँ",
+    shareDenied: "स्थान बंद रहा। आप फिर भी बुक कर सकते हैं।", shareUnavailable: "यहाँ स्थान उपलब्ध नहीं। आप फिर भी बुक कर सकते हैं।",
     matBringMsg: "प्लीज़ साथ लाएँ", matOwnMsg: "मेरे पास है",
-    msg: (o: Msg) => `नई सफाई बुकिंग, रेफ ${o.ref}\n\n` + lines([["नाम", o.name], ["एरिया", o.area], ["पता", o.address], ["तारीख", o.date], ["शुरू का टाइम", o.time], ["घर", o.home], ["सफाई", `${o.type}, ${o.freq}`], ["टीम", o.crew], ["सफाई का सामान", o.materials], ["फर्नीचर", o.furnished], ["एक्स्ट्रा", o.extras], ["अंदाज़न रेट", o.estimate], ["नोट", o.notes]]) + `\n\nपक्का करने के लिए जवाब दें: Confirmed ${o.ref}`,
+    msg: (o: Msg) => `नई सफाई बुकिंग, रेफ ${o.ref}\n\n` + lines([["नाम", o.name], ["मोबाइल", o.mobile], ["एरिया", o.area], ["पता", o.address], ["तारीख", o.date], ["शुरू का टाइम", o.time], ["घर", o.home], ["सफाई", `${o.type}, ${o.freq}`], ["टीम", o.crew], ["सफाई का सामान", o.materials], ["फर्नीचर", o.furnished], ["एक्स्ट्रा", o.extras], ["अंदाज़न रेट", o.estimate], ["नोट", o.notes], ["स्थान", o.location]]) + `\n\nपक्का करने के लिए जवाब दें: Confirmed ${o.ref}`,
   },
 };

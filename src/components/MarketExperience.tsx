@@ -3,13 +3,15 @@
 import dynamic from "next/dynamic";
 import { AnimatePresence, LayoutGroup, MotionConfig, motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ShareLocation } from "@/components/ShareLocation";
 import { getCopy } from "@/lib/marketCopy";
 import { shownHomes } from "@/lib/markets";
 import { SQM } from "@/lib/quote";
 import {
-  channelHref, checkArea, formatArea, formatCount, formatMoney, homeSpec, initialState, isQuebecPostal, quote, sqftFor,
+  channelHref, formatCount, formatMoney, homeSpec, initialState, quote, sqftFor,
   type BookChannel, type Freq, type Lang, type Market, type MState,
 } from "@/lib/marketQuote";
+import { mapsUrl, mobileIssue, type GeoPoint } from "@/lib/phone";
 
 const HouseCanvas = dynamic(() => import("./House"), { ssr: false });
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -143,7 +145,6 @@ export default function MarketExperience({ market }: { market: Market }) {
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [booking, setBooking] = useState(false);
-  const [area, setArea] = useState("");
   const phone = usePhone();
   const copy = getCopy(lang, market.region);
   const money = (cents: number) => formatMoney(cents, market.currency, lang);
@@ -161,10 +162,6 @@ export default function MarketExperience({ market }: { market: Market }) {
     else if (allow(stored)) { setLangState(stored); setLangLock(true); }
     if (store.get("unit") === "m") setUnit("m");
   }, [market]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (langLock || market.areaKind !== "ca") return;
-    if (isQuebecPostal(area)) setLangState("fr");
-  }, [area, langLock, market.areaKind]);
   useEffect(() => {
     document.documentElement.lang = lang;
     document.documentElement.dir = "ltr";
@@ -444,29 +441,31 @@ export default function MarketExperience({ market }: { market: Market }) {
         <button type="button" className="btn primary" data-book onClick={openBook}>{bookIcon}<span>{copy.book}</span></button>
       </div>
 
-      <AnimatePresence>{booking && <MarketBooking key="bk" market={market} lang={lang} s={s} area={area} setArea={setArea} onClose={() => setBooking(false)} phone={phone} />}</AnimatePresence>
+      <AnimatePresence>{booking && <MarketBooking key="bk" market={market} lang={lang} s={s} onClose={() => setBooking(false)} phone={phone} />}</AnimatePresence>
     </MotionConfig>
   );
 }
 
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
-function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
-  market: Market; lang: Lang; s: MState; area: string; setArea: (v: string) => void; onClose: () => void; phone: boolean;
+function MarketBooking({ market, lang, s, onClose, phone }: {
+  market: Market; lang: Lang; s: MState; onClose: () => void; phone: boolean;
 }) {
   const copy = getCopy(lang, market.region);
   const money = (cents: number) => formatMoney(cents, market.currency, lang);
   const fmt = (n: number) => formatCount(n, lang);
   const q = quote(market, s);
   const [name, setName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [loc, setLoc] = useState<GeoPoint | null>(null);
   const [day, setDay] = useState<null | "today" | "tomorrow" | "pick">(null);
   const [dateValue, setDateValue] = useState("");
   const [time, setTime] = useState<number | null>(null);
   const [bad, setBad] = useState<Record<string, string>>({});
   const [done, setDone] = useState(false);
-  const [addrOpen, setAddrOpen] = useState(false);
-  const [notes, setNotes] = useState("");
   const [now] = useState(() => new Date());
+  const nameRef = useRef<HTMLInputElement>(null);
+  const mobileRef = useRef<HTMLInputElement>(null);
   const dlg = useRef<HTMLDivElement>(null);
   const H = typeof window === "undefined" ? 800 : window.innerHeight;
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -482,7 +481,6 @@ function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
   const daySlots = date ? slotsFor(date) : slotsFor(addDays(today, 1));
   const labelDay = (d: Date) => `${copy.months[d.getMonth()]} ${d.getDate()}`;
   const labelTime = (h: number) => (lang === "en" ? `${h % 12 || 12}${h < 12 ? "am" : "pm"}` : `${h} h`);
-  const areaSt = checkArea(market, area);
   const sendLabel = market.contact.book === "sms" ? copy.sendSms : market.contact.book === "whatsapp" ? copy.sendWa : copy.sendMail;
   const opening = market.contact.book === "sms" ? copy.openingSms : market.contact.book === "whatsapp" ? copy.openingWa : copy.openingMail;
 
@@ -496,7 +494,7 @@ function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
   const msg = [
     copy.msgIntro, "",
     `${copy.fullName}: ${name.trim()}`,
-    `${copy.area}: ${formatArea(market, area)}`,
+    `${copy.mobile}: ${mobile.trim()}`,
     `${copy.service}: ${copy.services[s.service]?.name ?? s.service}`,
     `${copy.home}: ${copy.homes[s.home] ?? s.home}`,
     `${copy.homeSize}: ${fmt(s.sqft)} ${copy.sqftUnit}`,
@@ -505,18 +503,22 @@ function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
     `${copy.total}: ${money(q.totalCents)}`,
     date ? `${copy.when}: ${labelDay(date)}` : "",
     time != null ? labelTime(time) : "",
-    notes.trim() ? notes.trim() : "",
+    loc ? `${copy.locationLabel}: ${mapsUrl(loc.lat, loc.lng)}` : "",
   ].filter(Boolean).join("\n");
   const hrefFor = (channel: BookChannel) => channelHref(market, channel, copy.msgIntro, msg);
   const primary = hrefFor(market.contact.book);
   const alts = market.contact.also.map((id) => ({ id, href: hrefFor(id), label: id === "sms" ? copy.text : id === "whatsapp" ? copy.whatsapp : copy.emailUs }));
   const valid = () => {
     const next: Record<string, string> = {};
+    const phoneIssue = mobileIssue(mobile);
     if (!name.trim()) next.name = copy.errName;
-    if (areaSt !== "in") next.area = areaSt === "out" ? copy.areaOut : area.trim() ? copy.areaBad : copy.errArea;
+    if (phoneIssue === "empty") next.mobile = copy.errPhone;
+    else if (phoneIssue === "bad") next.mobile = copy.errPhoneBad;
     if (!date) next.day = copy.errDate;
     if (time == null) next.time = copy.errWindow;
     setBad(next);
+    if (next.name) nameRef.current?.focus();
+    else if (next.mobile) mobileRef.current?.focus();
     return Object.keys(next).length === 0;
   };
 
@@ -536,8 +538,8 @@ function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
                 <div className="dlg-head"><h3 id="bkTitle">{copy.book}</h3><button type="button" className="icon-btn" aria-label={copy.edit} onClick={onClose}><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></button></div>
                 <p className="dlg-lead">{copy.confirmed}</p>
                 <div className="dlg-sum"><span>{`${copy.services[s.service]?.name ?? s.service}`}<br /><b>{copy.homes[s.home] ?? s.home}</b></span><strong>{money(q.totalCents)}</strong></div>
-                <label className="f"><span>{copy.fullName}</span><input id="fName" className="input" autoComplete="name" value={name} aria-invalid={bad.name ? true : undefined} onChange={(e) => { setName(e.target.value); setBad((b) => ({ ...b, name: "" })); }} />{bad.name && <p className="err show">{bad.name}</p>}</label>
-                <label className="f"><span>{copy.area}</span><input id="fArea" className="input" autoComplete="postal-code" inputMode={market.areaKind === "zip" ? "numeric" : "text"} placeholder={copy.areaPh} value={area} aria-invalid={bad.area ? true : undefined} onChange={(e) => { setArea(e.target.value); setBad((b) => ({ ...b, area: "" })); }} />{bad.area && <p className="err show">{bad.area}</p>}</label>
+                <label className="f"><span>{copy.fullName}</span><input ref={nameRef} id="fName" className="input" autoComplete="name" enterKeyHint="next" value={name} aria-invalid={bad.name ? true : undefined} aria-required="true" onChange={(e) => { setName(e.target.value); setBad((b) => ({ ...b, name: "" })); }} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); mobileRef.current?.focus(); } }} />{bad.name && <p className="err show">{bad.name}</p>}</label>
+                <label className="f"><span>{copy.mobile}</span><input ref={mobileRef} id="fMobile" name="mobile" className="input" type="tel" inputMode="numeric" autoComplete="tel" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="next" placeholder={copy.mobilePh} maxLength={24} value={mobile} aria-invalid={bad.mobile ? true : undefined} aria-required="true" aria-describedby={bad.mobile ? "mobileErr" : undefined} onChange={(e) => { setMobile(e.target.value); setBad((b) => ({ ...b, mobile: "" })); }} />{bad.mobile && <p className="err show" id="mobileErr">{bad.mobile}</p>}</label>
                 <div className="f">
                   <span id="dateLbl">{copy.when}</span>
                   <div className="chips" role="group" aria-labelledby="dateLbl">
@@ -561,10 +563,7 @@ function MarketBooking({ market, lang, s, area, setArea, onClose, phone }: {
                   </div>
                   {bad.time && <p className="err show">{bad.time}</p>}
                 </div>
-                <button type="button" className="row-toggle addr-toggle" aria-expanded={addrOpen} onClick={() => setAddrOpen((v) => !v)}><span className="label">{copy.street}</span><span className="meta"><span>{copy.optional}</span><Chev /></span></button>
-                <Reveal open={addrOpen}><div className="addr">
-                  <label className="f"><span>{copy.notes}</span><textarea className="input" id="fNotes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
-                </div></Reveal>
+                <ShareLocation share={copy.shareLoc} finding={copy.shareFinding} added={copy.shareAdded} remove={copy.shareRemove} denied={copy.shareDenied} unavailable={copy.shareUnavailable} value={loc} onChange={setLoc} />
                 <div className="dlg-foot">
                   <a className="btn primary wide" id="sendBtn" data-channel={market.contact.book} href={primary} onClick={(e) => { if (!valid()) e.preventDefault(); else setDone(true); }}>{market.contact.book === "whatsapp" ? <WaIcon /> : null}<span>{sendLabel}</span></a>
                 </div>

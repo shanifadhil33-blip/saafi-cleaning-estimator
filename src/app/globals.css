@@ -393,6 +393,15 @@ html[lang="ur"] .bar-crew{line-height:1.35;font-size:12px}
 .chips.times{gap:6px}.chips.times .chip{height:40px;padding:0 14px;font-variant-numeric:tabular-nums}
 .err.show{display:block}
 .chips[data-bad] .chip:not(:disabled){border-color:#8a8a8a}
+.loc-field{margin:2px 0 16px}
+.loc-btn,.loc-added{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:50px;padding:8px 18px;border-radius:999px;border:1px solid var(--line-2);background:transparent;color:var(--text);font-weight:500;font-size:15px;line-height:1.3;text-align:center}
+.loc-btn:hover{border-color:#555}
+.loc-btn:disabled{opacity:.72;cursor:progress}
+.loc-added{justify-content:flex-start;padding-inline:16px 6px}
+.loc-tick{display:grid;place-items:center;flex:none;width:22px;height:22px;border-radius:50%;background:var(--text);color:var(--ink)}
+.loc-remove{margin-inline-start:auto;min-width:44px;min-height:44px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--muted);font-size:15px;font-weight:500;line-height:1.2}
+.loc-remove:hover{color:var(--text)}
+.loc-field .note{margin:8px 4px 0}
 .addr-toggle{height:50px;margin:2px 0 4px}
 .addr{padding-top:12px}.addr .two{gap:10px}
 textarea.input{height:auto;min-height:64px;padding:12px 18px;border-radius:20px;resize:none;line-height:1.45;font:inherit}

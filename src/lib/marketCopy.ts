@@ -77,6 +77,14 @@ export interface Copy {
   fullName: string;
   email: string;
   mobile: string;
+  mobilePh: string;
+  shareLoc: string;
+  shareFinding: string;
+  shareAdded: string;
+  shareRemove: string;
+  shareDenied: string;
+  shareUnavailable: string;
+  locationLabel: string;
   street: string;
   apt: string;
   city: string;
@@ -120,6 +128,7 @@ export interface Copy {
   errName: string;
   errEmail: string;
   errPhone: string;
+  errPhoneBad: string;
   errDate: string;
   errWindow: string;
   errTerms: string;
@@ -241,6 +250,14 @@ const en: Copy = {
   fullName: "Name",
   email: "Email",
   mobile: "Mobile",
+  mobilePh: "(555) 010 0100",
+  shareLoc: "Share my location",
+  shareFinding: "Finding your location",
+  shareAdded: "Location added",
+  shareRemove: "Remove",
+  shareDenied: "Location stayed off. You can still book.",
+  shareUnavailable: "Location is not available here. You can still book.",
+  locationLabel: "Location",
   street: "Street address",
   apt: "Apt or unit",
   city: "City",
@@ -284,6 +301,7 @@ const en: Copy = {
   errName: "Add your name",
   errEmail: "Add a valid email",
   errPhone: "Add a mobile number",
+  errPhoneBad: "Check the mobile number",
   errDate: "Pick a date",
   errWindow: "Pick an arrival window",
   errTerms: "Agree to the terms to continue",
@@ -387,6 +405,14 @@ const es: Copy = {
   fullName: "Nombre",
   email: "Correo",
   mobile: "Móvil",
+  mobilePh: "(555) 010 0100",
+  shareLoc: "Compartir mi ubicación",
+  shareFinding: "Buscando tu ubicación",
+  shareAdded: "Ubicación añadida",
+  shareRemove: "Quitar",
+  shareDenied: "La ubicación se quedó apagada. Puedes reservar igual.",
+  shareUnavailable: "La ubicación no está disponible aquí. Puedes reservar igual.",
+  locationLabel: "Ubicación",
   street: "Calle",
   apt: "Apto o unidad",
   city: "Ciudad",
@@ -430,6 +456,7 @@ const es: Copy = {
   errName: "Añade tu nombre",
   errEmail: "Añade un correo válido",
   errPhone: "Añade un móvil",
+  errPhoneBad: "Revisa el móvil",
   errDate: "Elige una fecha",
   errWindow: "Elige una franja de llegada",
   errTerms: "Acepta las condiciones para seguir",
@@ -534,6 +561,14 @@ const fr: Copy = {
   fullName: "Nom",
   email: "Courriel",
   mobile: "Mobile",
+  mobilePh: "(555) 010 0100",
+  shareLoc: "Partager ma position",
+  shareFinding: "Recherche de votre position",
+  shareAdded: "Position ajoutée",
+  shareRemove: "Retirer",
+  shareDenied: "La position reste désactivée. Vous pouvez réserver quand même.",
+  shareUnavailable: "La position n'est pas disponible ici. Vous pouvez réserver quand même.",
+  locationLabel: "Position",
   street: "Adresse",
   apt: "Appartement ou unité",
   city: "Ville",
@@ -577,6 +612,7 @@ const fr: Copy = {
   errName: "Ajoutez votre nom",
   errEmail: "Ajoutez un courriel valide",
   errPhone: "Ajoutez un mobile",
+  errPhoneBad: "Vérifiez le mobile",
   errDate: "Choisissez une date",
   errWindow: "Choisissez une plage d'arrivée",
   errTerms: "Acceptez les conditions pour continuer",
@@ -614,6 +650,7 @@ export function getCopy(lang: Lang, region: Region): Copy {
       areaPh: frCa ? "H2Y 1C6" : "A1A 1A1",
       areaBad: frCa ? copy.areaBad : "Enter a postal code like A1A 1A1.",
       state: frCa ? copy.state : "Province",
+      mobilePh: "(555) 010 0100",
     };
   }
   if (region === "uk") {
@@ -623,6 +660,7 @@ export function getCopy(lang: Lang, region: Region): Copy {
       area: "Postcode",
       areaPh: "SW1A 1AA",
       areaBad: "Enter a postcode like SW1A 1AA.",
+      mobilePh: "07700 900000",
       services: ukServices,
       homes: {
         studioflat: "Studio flat", flat: "Flat", maisonette: "Maisonette", terraced: "Terraced",

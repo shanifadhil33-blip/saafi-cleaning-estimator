@@ -5,9 +5,11 @@
 import dynamic from "next/dynamic";
 import { AnimatePresence, LayoutGroup, MotionConfig, animate, motion, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ShareLocation } from "@/components/ShareLocation";
 import { STR, MORE, REAL, arBaths, arFloors, type Lang } from "@/lib/strings";
 import type { Market } from "@/lib/marketQuote";
 import MarketExperience from "@/components/MarketExperience";
+import { mapsUrl, mobileIssue, type GeoPoint } from "@/lib/phone";
 import { KINDS, SQM, autoSize, extrasFor, fitKind, initial, isClosed, maidAllowed, quote, refCode, slots, switchKind, waUrl, waWebUrl, type CleanType, type Company, type HomeKind, type State } from "@/lib/quote";
 
 const HouseCanvas = dynamic(() => import("./House"), { ssr: false });
@@ -382,16 +384,17 @@ function GccEstimator({ company: c }: { company: Company }) {
 /* ----------------------------- booking ----------------------------- */
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const LIMIT = { name: 60, area: 80, building: 80, unit: 20, notes: 300 };
+const LIMIT = { name: 60, mobile: 24 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin, onClose }: { c: Company; t: any; lang: Lang; brand: string; s: State; q: ReturnType<typeof quote>; money: (n: number) => string; homeLine: string; exName: (k: string) => string; range: (a: number, b: number) => string; phone: boolean; origin: { x: number; y: number }; onClose: () => void }) {
-  const [f, setF] = useState({ name: "", area: "", building: "", unit: "", notes: "" });
+  const [f, setF] = useState({ name: "", mobile: "" });
+  const [loc, setLoc] = useState<GeoPoint | null>(null);
   const [day, setDay] = useState<null | "today" | "tomorrow" | "pick">(null), [dateValue, setDateValue] = useState(""), [time, setTime] = useState<number | null>(null);
-  const [bad, setBad] = useState<Record<string, boolean>>({}), [done, setDone] = useState(false), [addrOpen, setAddrOpen] = useState(false), [copied, setCopied] = useState(false);
+  const [bad, setBad] = useState<Record<string, boolean>>({}), [done, setDone] = useState(false), [copied, setCopied] = useState(false);
   const [ref] = useState(() => refCode(c));
   const [now] = useState(() => new Date());
-  const nameRef = useRef<HTMLInputElement>(null), areaRef = useRef<HTMLInputElement>(null), dlg = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null), mobileRef = useRef<HTMLInputElement>(null), dlg = useRef<HTMLDivElement>(null);
   /* Android back closes the sheet: one history entry while open. */
   const viaBack = useRef(false);
   const onCloseRef = useRef(onClose); onCloseRef.current = onClose;
@@ -402,11 +405,23 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
   }, []);
   const closeRef = useRef(requestClose); closeRef.current = requestClose;
   useEffect(() => {
-    viaBack.current = false;
-    history.pushState({ ...(history.state || {}), bk: 1 }, "");
-    const pop = () => { if (viaBack.current) return; viaBack.current = true; onCloseRef.current(); };
-    addEventListener("popstate", pop);
-    return () => { removeEventListener("popstate", pop); if (!viaBack.current && history.state?.bk) history.back(); };
+    /* Development renders this effect twice. Pushing history immediately makes the
+       first cleanup call history.back(), and that popstate then closes the sheet. */
+    let pushed = false;
+    let removePop = () => {};
+    const frame = requestAnimationFrame(() => {
+      viaBack.current = false;
+      history.pushState({ ...(history.state || {}), bk: 1 }, "");
+      pushed = true;
+      const pop = () => { if (viaBack.current) return; viaBack.current = true; onCloseRef.current(); };
+      addEventListener("popstate", pop);
+      removePop = () => removeEventListener("popstate", pop);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      removePop();
+      if (pushed && !viaBack.current && history.state?.bk) history.back();
+    };
   }, []);
   /* Swipe down to close on phone: from the handle or header, or anywhere once the sheet is scrolled to the top. */
   const H = typeof window === "undefined" ? 800 : window.innerHeight;
@@ -443,7 +458,7 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
     return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end); };
   }, [phone, y]);
   useEffect(() => {
-    setF((x) => ({ ...x, name: store.get("name") || "", area: store.get("area") || "", building: store.get("building") || "", unit: store.get("unit") || "" }));
+    setF((x) => ({ ...x, name: store.get("name") || "", mobile: store.get("mobile") || "" }));
     const prev = document.activeElement as HTMLElement | null;
     // No autofocus on a field (it shows a ring with no tap); focus the dialog itself for screen readers and Tab.
     const id = setTimeout(() => dlg.current?.focus({ preventScroll: true }), 320);
@@ -467,31 +482,33 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
   const sep = lang === "en" || lang === "hi" ? ", " : "، ";
   useEffect(() => { if (time != null && !daySlots.find((x) => x.h === time)?.ok) setTime(null); }, [day, dateValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const phoneIssue = mobileIssue(f.mobile);
   const msg = t.msg({
-    ref, name: f.name.trim(), area: f.area.trim(),
-    address: [f.building.trim(), f.unit.trim()].filter(Boolean).join(sep),
+    ref, name: f.name.trim(), mobile: f.mobile.trim(), area: "", address: "",
+    location: loc ? mapsUrl(loc.lat, loc.lng) : "",
     date: date ? `${day === "today" ? t.today + sep : day === "tomorrow" ? t.tomorrow + sep : ""}${dayLabel(date)}` : "",
     time: time != null ? timeLabel(time) : "",
     home: homeLine, type: t.typeLong[s.type], freq: s.weekly ? t.weekly : t.oneTime,
     crew: t.crew(q.cleaners, q.hours), materials: s.materials ? t.matBringMsg : t.matOwnMsg,
     furnished: s.type === "move" ? (s.furnished ? t.furnished : t.unfurnished) : "",
     extras: q.extras.length ? q.extras.map(([k]) => exName(k)).join(sep) : t.none,
-    estimate: `${range(q.total, q.high)}${s.weekly ? ` ${t.perVisit}` : ""}`, notes: f.notes.trim(),
+    estimate: `${range(q.total, q.high)}${s.weekly ? ` ${t.perVisit}` : ""}`, notes: "",
   });
   const href = phone ? waUrl(c, msg) : waWebUrl(c, msg);
   const validate = () => {
-    const miss = { name: !f.name.trim(), area: !f.area.trim(), day: !date || !!dateErr, time: time == null };
+    const miss = { name: !f.name.trim(), mobile: phoneIssue != null, day: !date || !!dateErr, time: time == null };
     setBad(miss); return !Object.values(miss).some(Boolean) ? null : miss;
   };
   const send = (e: React.MouseEvent) => {
     const miss = validate();
-    if (miss) { e.preventDefault(); if (miss.name) nameRef.current?.focus(); else if (miss.area) areaRef.current?.focus(); return; }
-    (["name", "area", "building", "unit"] as const).forEach((k) => store.set(k, f[k].trim()));
+    if (miss) { e.preventDefault(); if (miss.name) nameRef.current?.focus(); else if (miss.mobile) mobileRef.current?.focus(); return; }
+    store.set("name", f.name.trim());
+    store.set("mobile", f.mobile.trim());
     setTimeout(() => setDone(true), 140);
   };
   const copy = async () => { try { await navigator.clipboard.writeText(msg); } catch { const ta = document.createElement("textarea"); ta.value = msg; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove(); } setCopied(true); setTimeout(() => setCopied(false), 1800); };
   const field = (k: keyof typeof f, label: string, extra: React.InputHTMLAttributes<HTMLInputElement> = {}, ref?: React.RefObject<HTMLInputElement | null>, err?: string) => (
-    <label className="f"><span>{label}</span><input ref={ref} className="input" dir="auto" maxLength={LIMIT[k]} aria-invalid={bad[k] || undefined} value={f[k]} onChange={(e) => { setF((x) => ({ ...x, [k]: e.target.value })); setBad((b) => ({ ...b, [k]: false })); }} {...extra} />{err && <p className="err">{err}</p>}</label>
+    <label className="f"><span>{label}</span><input ref={ref} className="input" dir="auto" maxLength={LIMIT[k]} aria-invalid={bad[k] || undefined} value={f[k]} onChange={(e) => { setF((x) => ({ ...x, [k]: e.target.value })); setBad((b) => ({ ...b, [k]: false })); }} {...extra} />{err && <p className="err" id={`${k}Err`}>{err}</p>}</label>
   );
     return (
     <div className="modal" id="modal">
@@ -511,9 +528,8 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
                 <div className="dlg-head"><h3 id="bkTitle">{t.book}</h3><button type="button" className="icon-btn" aria-label={t.close} onClick={requestClose}><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></button></div>
                 <p className="dlg-lead">{t.bkLead(brand)}</p>
                 <div className="dlg-sum"><span>{`${t.typeLong[s.type]}${sep}${homeLine}`}<br /><b>{t.crew(q.cleaners, q.hours)}</b></span><strong>{range(q.total, q.high)}</strong></div>
-                {field("name", t.name, { autoComplete: "name", enterKeyHint: "next", id: "fName", onKeyDown: (e) => { if (e.key === "Enter") { e.preventDefault(); areaRef.current?.focus(); } } }, nameRef, t.errName)}
-                {field("area", t.area, { autoComplete: "address-level3", enterKeyHint: "done", id: "fArea", list: "areas", onKeyDown: (e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } } }, areaRef, t.errArea)}
-                <datalist id="areas">{c.areas.map((a) => <option key={a} value={a} />)}</datalist>
+                {field("name", t.name, { autoComplete: "name", enterKeyHint: "next", id: "fName", "aria-required": true, onKeyDown: (e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); mobileRef.current?.focus(); } } }, nameRef, t.errName)}
+                {field("mobile", t.mobile, { type: "tel", inputMode: "numeric", autoComplete: "tel", autoCorrect: "off", autoCapitalize: "off", spellCheck: false, enterKeyHint: "next", id: "fMobile", name: "mobile", placeholder: t.mobilePh, "aria-required": true, "aria-describedby": bad.mobile ? "mobileErr" : undefined, onKeyDown: (e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); (e.target as HTMLInputElement).blur(); } } }, mobileRef, phoneIssue === "bad" ? t.errPhoneBad : t.errPhone)}
                 <div className="f">
                   <span id="dateLbl">{t.date}</span>
                   <div className="chips" role="group" aria-labelledby="dateLbl" data-bad={bad.day || undefined}>
@@ -534,11 +550,7 @@ function Booking({ c, t, lang, brand, s, homeLine, exName, range, phone, origin,
                   </div>
                   {bad.time && <p className="err show">{t.errTime}</p>}
                 </div>
-                <button type="button" className="row-toggle addr-toggle" aria-expanded={addrOpen} onClick={() => setAddrOpen((v) => !v)}><span className="label">{t.addr}</span><span className="meta"><span>{t.optional}</span><Chev /></span></button>
-                <Reveal open={addrOpen}><div className="addr">
-                  <div className="two">{field("building", t.building, { autoComplete: "address-line1", id: "fBuilding", tabIndex: addrOpen ? 0 : -1 })}{field("unit", t.unit, { id: "fUnit", tabIndex: addrOpen ? 0 : -1 })}</div>
-                  <label className="f"><span>{t.notes}</span><textarea className="input area-in" dir="auto" id="fNotes" rows={2} maxLength={LIMIT.notes} tabIndex={addrOpen ? 0 : -1} placeholder={t.notesPh} value={f.notes} onChange={(e) => setF((x) => ({ ...x, notes: e.target.value }))} /></label>
-                </div></Reveal>
+                <ShareLocation share={t.shareLoc} finding={t.shareFinding} added={t.shareAdded} remove={t.shareRemove} denied={t.shareDenied} unavailable={t.shareUnavailable} value={loc} onChange={setLoc} />
                 <p className="note approx">{t.approx}</p>
                 <div className="dlg-foot"><a className="btn primary wide" id="sendBtn" href={href} target="_blank" rel="noopener" onClick={send}><WaIcon /><span>{t.send}</span></a></div>
               </motion.div>
