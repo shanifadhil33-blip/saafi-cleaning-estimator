@@ -4,6 +4,7 @@ const [BASE, OUT] = [process.argv[2] || "http://localhost:3311", process.argv[3]
 fs.mkdirSync(OUT, { recursive: true });
 const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--no-sandbox","--enable-unsafe-swiftshader","--use-angle=swiftshader"] });
 let fail = 0; const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fail++; };
+const OPTIONAL = /optional|opcional|facultatif|اختياري|اختیاری|ज़रूरी नहीं/i;
 for (const [w, h] of [[360, 780], [390, 844], [1280, 900], [1440, 900]]) for (const L of ["en", "ar", "ur", "hi"]) {
   const ctx = await b.newContext({ viewport: { width: w, height: h }, hasTouch: w < 800, isMobile: w < 800, permissions: ["clipboard-read", "clipboard-write"] });
   const p = await ctx.newPage(); const errs = []; p.on("pageerror", (e) => errs.push(e.message));
@@ -13,6 +14,7 @@ for (const [w, h] of [[360, 780], [390, 844], [1280, 900], [1440, 900]]) for (co
   ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${tag} no sideways scroll`);
   const h1 = await p.locator("h1").innerText(); ok(L === "en" ? /Price your/.test(h1) : L === "hi" ? /[\u0900-\u097F]/.test(h1) && !/[A-Za-z]/.test(h1) : /[\u0600-\u06FF]/.test(h1) && !/[A-Za-z]/.test(h1), `${tag} heading ${h1}`);
   ok(!(await p.evaluate(() => /Saafi|Noor/.test(document.body.innerText + document.title))), `${tag} no brand name`);
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), `${tag} no optional label`);
   if (w >= 800) {
     const desk = await p.evaluate(() => {
       const box = (el) => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, btm: b.bottom }; };
@@ -76,7 +78,7 @@ for (const [w, h] of [[360, 780], [390, 844], [1280, 900], [1440, 900]]) for (co
   ok(await p.locator("#fMobile[aria-invalid=true]").count() === 1, `${tag} empty mobile is flagged`);
   ok(await p.locator("#fArea, .addr-toggle, #fBuilding, #fNotes").count() === 0, `${tag} no area or address fields`);
   ok(await p.locator("#shareLoc").count() === 1, `${tag} share location button`);
-  ok(!/optional/i.test(await p.locator("#viewForm").innerText()), `${tag} form never says optional`);
+  ok(!OPTIONAL.test(await p.locator("#viewForm").innerText()) && !OPTIONAL.test(await p.locator("body").innerText()), `${tag} no optional label on the form or page`);
   ok(await p.locator("#fMobile").getAttribute("type") === "tel" && await p.locator("#fMobile").getAttribute("inputmode") === "numeric", `${tag} tel with numeric keypad`);
   ok(await p.locator("#fMobile").getAttribute("placeholder") === "050 000 0000", `${tag} gcc mobile placeholder`);
   const follows = await p.evaluate(() => {
@@ -129,6 +131,7 @@ for (const [w, h] of [[360, 780], [390, 844], [1280, 900], [1440, 900]]) for (co
   await p.waitForSelector("canvas");
   await p.locator(phone ? ".bar .btn" : ".summary .book-btn").click();
   await p.waitForSelector("#shareLoc");
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), `${tag} no optional label`);
   await p.fill("#fName", "Omar Khalid");
   await p.fill("#fMobile", "050 000 0000");
   await p.locator("#shareLoc").click();
@@ -152,6 +155,7 @@ for (const [w, h] of [[360, 780], [390, 844], [1280, 900], [1440, 900]]) for (co
   const p = await ctx.newPage();
   await p.goto(`${BASE}/c/saafi`);
   await p.waitForSelector("canvas");
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), "company page has no optional label");
   await p.locator(".bar .btn").click();
   await p.waitForSelector("#fMobile");
   ok(await p.locator("#fArea, .addr-toggle").count() === 0 && await p.locator("#shareLoc").count() === 1, "company page share location");

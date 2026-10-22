@@ -331,7 +331,7 @@ function GccEstimator({ company: c }: { company: Company }) {
                 <div className="field">
                   <button type="button" className="row-toggle" aria-expanded={extrasOpen} aria-controls="extrasPanel" onClick={() => setExtrasOpen((v) => !v)}>
                     <span className="label">{t.extras}</span>
-                    <span className="meta"><span>{s.extras.length ? t.extrasCount(s.extras.length) : t.extrasNone}</span><Chev /></span>
+                    <span className="meta">{s.extras.length ? <span>{t.extrasCount(s.extras.length)}</span> : null}<Chev /></span>
                   </button>
                   <Reveal open={extrasOpen} id="extrasPanel"><div className="extras">
                     {extras.map((k) => <button key={k} type="button" className="extra" data-k={k} aria-pressed={s.extras.includes(k)} onClick={() => set((x) => ({ ...x, extras: x.extras.includes(k) ? x.extras.filter((e) => e !== k) : [...x.extras, k] }))}><Tick /><span className="name">{exName(k)}</span><span className="amt">{money(c.extras[k].price)}</span></button>)}

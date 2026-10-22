@@ -1,4 +1,5 @@
 /* Phone coverage for the US, Canada, and UK sheets at 360 and 390. */
+import fs from "fs";
 import { chromium } from "playwright-core";
 const [BASE] = [process.argv[2] || "http://127.0.0.1:3311"];
 const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--no-sandbox", "--enable-unsafe-swiftshader", "--use-angle=swiftshader"] });
@@ -11,6 +12,7 @@ const placeholders = { "/us": "(555) 010 0100", "/ca": "(555) 010 0100", "/uk": 
 const cases = [["/us", "en"], ["/us", "es"], ["/ca", "en"], ["/ca", "fr"], ["/uk", "en"]];
 const widths = [[360, 780], [390, 844], [1280, 900], [1440, 900]];
 const bodyOf = (href, key) => decodeURIComponent((href.split(`${key}=`)[1] || "").replace(/\+/g, " "));
+const OPTIONAL = /optional|opcional|facultatif|اختياري|اختیاری|ज़रूरी नहीं/i;
 
 async function total(p) { return Number(await p.locator(".app").getAttribute("data-total")); }
 
@@ -74,6 +76,7 @@ for (const [w, h] of widths) for (const [path, L] of cases) {
   });
   ok((await total(p)) !== beforeSlide, `${tag} slider changes the price`);
   ok(!(/[—–-]/.test(text)), `${tag} no dashes in copy`);
+  ok(!OPTIONAL.test(text), `${tag} no optional label`);
   ok(!/Saafi|Darwin|Noor/i.test(text + await p.title()), `${tag} no brand`);
   if (path !== "/uk") ok(!/WhatsApp/i.test(text), `${tag} no WhatsApp`);
   else ok(/WhatsApp/.test(text), `${tag} WhatsApp offered`);
@@ -107,7 +110,7 @@ for (const [w, h] of widths) for (const [path, L] of cases) {
   ok(await p.locator("#fArea, .addr-toggle").count() === 0, `${tag} no postal code or street address`);
   ok(await p.locator("#shareLoc").count() === 1, `${tag} share location button`);
   const formText = await p.locator("#viewForm").innerText();
-  ok(!/optional|opcional|facultatif/i.test(formText) && !/optional/i.test(await p.locator("#shareLoc").innerText()), `${tag} form and location button never say optional`);
+  ok(!OPTIONAL.test(formText) && !OPTIONAL.test(await p.locator("body").innerText()), `${tag} no optional label on the form or page`);
   ok(await p.locator("#fMobile").getAttribute("type") === "tel" && await p.locator("#fMobile").getAttribute("inputmode") === "numeric", `${tag} tel with numeric keypad`);
   ok(await p.locator("#fMobile").getAttribute("placeholder") === placeholders[path], `${tag} mobile placeholder`);
   const follows = await p.evaluate(() => {
@@ -162,14 +165,17 @@ for (const [w, h] of widths) for (const [path, L] of cases) {
   await p.locator(".bar .btn").click();
   await p.waitForSelector("#shareLoc");
   ok((await p.locator("#shareLoc").innerText()).includes("Partager ma position"), "French share location copy");
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), "French page has no optional label");
   ok(await p.locator("#fArea").count() === 0, "Canada booking has no postal field");
   await p.goto(`${BASE}/`);
   await p.waitForSelector("canvas");
   ok(await p.locator(".kind[data-kind=villa]").count() === 1, "GCC home still has villa");
   ok(/WhatsApp/i.test(await p.locator(".lead").innerText()), "GCC home still books on WhatsApp");
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), "GCC home has no optional label");
   await p.goto(`${BASE}/c/saafi`);
   await p.waitForSelector("canvas");
   ok((await p.locator("h1").innerText()).includes("Price your"), "company page still the GCC estimator");
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), "company page has no optional label");
   await p.locator(".bar .btn").click();
   await p.waitForSelector("#fMobile");
   ok(await p.locator("#fArea, .addr-toggle").count() === 0 && await p.locator("#shareLoc").count() === 1, "company booking uses location instead of area");
@@ -178,6 +184,7 @@ for (const [w, h] of widths) for (const [path, L] of cases) {
 }
 
 const shots = "/opt/cursor/artifacts";
+fs.mkdirSync(shots, { recursive: true });
 const pages = [["/", "home"], ["/us", "us"], ["/ca", "ca"], ["/uk", "uk"], ["/c/saafi", "saafi"]];
 for (const [w, h] of [[1280, 800], [1440, 900], [1920, 1080]]) for (const [path, name] of pages) {
   const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
@@ -240,6 +247,7 @@ for (const [w, h] of [[1280, 800], [1440, 900], [1920, 1080]]) for (const [path,
   ok(desk.segH >= 48 && desk.radius >= 20, `${tag} controls stay rounded and comfortable`);
   ok(desk.scrolls && desk.hScroll && desk.phoneChrome && desk.mono, `${tag} the sheet scrolls inside a dark panel`);
   if (path !== "/" && path !== "/c/saafi") ok(!/Saafi|Darwin|Noor/i.test(await p.evaluate(() => document.title + "\n" + document.body.innerText)), `${tag} no brand`);
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), `${tag} no optional label`);
   await p.screenshot({ path: `${shots}/desktop-${w}x${h}-${name}.png` });
   ok(errs.length === 0, `${tag} no page errors ${errs.join("|")}`);
   await ctx.close();
@@ -275,7 +283,7 @@ for (const geo of geoCases) {
   await p.locator(phone ? ".bar .btn" : ".summary .book-btn").click();
   await p.waitForSelector("#shareLoc");
   ok((await p.locator("#shareLoc").innerText()).includes(geo.share), `${tag} button copy`);
-  ok(!/optional|opcional|facultatif/i.test(await p.locator("#shareLoc").innerText()), `${tag} location button never says optional`);
+  ok(!OPTIONAL.test(await p.locator("body").innerText()), `${tag} no optional label`);
   const mobile = mobiles[geo.path];
   await p.locator("#fName").fill("Ana Lopez");
   await p.locator("#fMobile").fill(mobile);
@@ -297,7 +305,7 @@ for (const geo of geoCases) {
     ok(note.includes(geo.note) && await p.locator("#shareLoc").count() === 1, `${tag} denied note stays on the form (${note})`);
     ok(!/[—–-]/.test(note), `${tag} denied note has no dashes`);
   }
-  ok(!/optional|opcional|facultatif/i.test(await p.locator("#viewForm").innerText()), `${tag} form never says optional`);
+  ok(!OPTIONAL.test(await p.locator("#viewForm").innerText()) && !OPTIONAL.test(await p.locator("body").innerText()), `${tag} form never says optional`);
   await p.locator("[data-day=tomorrow]").click();
   await p.locator(".chips.times .chip:not([disabled])").first().click();
   await p.locator("#sendBtn").evaluate((el) => el.addEventListener("click", (e) => e.preventDefault(), true));

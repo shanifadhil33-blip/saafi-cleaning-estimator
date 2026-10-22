@@ -392,7 +392,7 @@ export default function MarketExperience({ market }: { market: Market }) {
                 <div className="field">
                   <button type="button" className="row-toggle" aria-expanded={extrasOpen} aria-controls="extrasPanel" onClick={() => setExtrasOpen((v) => !v)}>
                     <span className="label">{copy.extras}</span>
-                    <span className="meta"><span>{Object.keys(s.extras).length ? String(Object.keys(s.extras).length) : copy.optional}</span><Chev /></span>
+                    <span className="meta">{Object.keys(s.extras).length ? <span>{Object.keys(s.extras).length}</span> : null}<Chev /></span>
                   </button>
                   <Reveal open={extrasOpen} id="extrasPanel"><div className="extras">
                     {market.extraOrder.map((id) => (
