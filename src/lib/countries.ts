@@ -340,7 +340,7 @@ export function displayName(c: Country, lang: PhoneLang): string {
 }
 
 export function flagSrc(iso: string): string {
-  return `/flags/${iso.toLowerCase()}.svg`;
+  return `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/flags/${iso.toLowerCase()}.svg`;
 }
 
 const FOLD = /\p{M}/gu;
